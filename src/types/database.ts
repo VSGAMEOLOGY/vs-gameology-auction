@@ -1,0 +1,196 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+export type UserRole = "user" | "admin";
+export type AuctionStatus = "draft" | "scheduled" | "active" | "ended" | "cancelled";
+export type FulfillmentType = "shipping" | "collection";
+export type PaymentStatus = "pending" | "submitted" | "verified" | "rejected" | "refunded";
+export type NotificationType =
+  | "bid_outbid"
+  | "auction_won"
+  | "auction_ending"
+  | "payment_verified"
+  | "payment_rejected"
+  | "account_suspended"
+  | "general";
+export type SuspensionType = "temporary" | "permanent";
+
+export interface Profile {
+  id: string;
+  real_name: string;
+  username: string;
+  whatsapp: string;
+  role: string;
+  status: string;
+  verification_status: string;
+  completed_wins: number;
+  unpaid_wins: number;
+  total_bids: number;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShippingAddress {
+  id: string;
+  user_id: string;
+  label: string;
+  recipient_name: string;
+  phone: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Auction {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  starting_price: number;
+  reserve_price: number | null;
+  current_price: number;
+  bid_increment: number;
+  shipping_fee: number;
+  fulfillment_type: FulfillmentType;
+  status: AuctionStatus;
+  start_time: string | null;
+  end_time: string | null;
+  winner_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Bid {
+  id: string;
+  auction_id: string;
+  bidder_id: string;
+  amount: number;
+  created_at: string;
+  bidder?: Profile;
+}
+
+export interface WatchlistItem {
+  id: string;
+  user_id: string;
+  auction_id: string;
+  created_at: string;
+  auction?: Auction;
+}
+
+export interface Payment {
+  id: string;
+  auction_id: string;
+  user_id: string;
+  amount: number;
+  shipping_fee: number;
+  total_amount: number;
+  fulfillment_type: FulfillmentType;
+  shipping_address_id: string | null;
+  status: PaymentStatus;
+  payment_proof_url: string | null;
+  admin_notes: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+  auction?: Auction;
+  user?: Profile;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface BlacklistEntry {
+  id: string;
+  email: string;
+  reason: string;
+  blacklisted_by: string | null;
+  created_at: string;
+}
+
+export interface AdminActivityLog {
+  id: string;
+  admin_id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: Json | null;
+  created_at: string;
+  admin?: Profile;
+}
+
+export interface SuspensionRecord {
+  id: string;
+  user_id: string;
+  suspended_by: string;
+  type: SuspensionType;
+  reason: string;
+  suspended_until: string | null;
+  lifted_at: string | null;
+  created_at: string;
+}
+
+type TableRow<
+  T extends
+    | Profile
+    | ShippingAddress
+    | Auction
+    | Bid
+    | WatchlistItem
+    | Payment
+    | Notification
+    | BlacklistEntry
+    | AdminActivityLog
+    | SuspensionRecord,
+> = {
+  Row: T;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
+  Relationships: [];
+};
+
+export type Database = {
+  public: {
+    Tables: {
+      profiles: TableRow<Profile>;
+      shipping_addresses: TableRow<ShippingAddress>;
+      auctions: TableRow<Auction>;
+      bids: TableRow<Bid>;
+      watchlist: TableRow<WatchlistItem>;
+      payments: TableRow<Payment>;
+      notifications: TableRow<Notification>;
+      blacklist: TableRow<BlacklistEntry>;
+      admin_activity_logs: TableRow<AdminActivityLog>;
+      suspension_history: TableRow<SuspensionRecord>;
+    };
+    Views: Record<string, never>;
+    Functions: {
+      activate_scheduled_auctions: { Args: Record<string, never>; Returns: undefined };
+      end_expired_auctions: { Args: Record<string, never>; Returns: undefined };
+      end_auction: { Args: { p_auction_id: string }; Returns: undefined };
+      is_admin: { Args: Record<string, never>; Returns: boolean };
+      is_suspended: { Args: Record<string, never>; Returns: boolean };
+    };
+  };
+};
