@@ -103,7 +103,7 @@ export function Header() {
               <Link href="/profile">
                 <Button variant="ghost" size="sm">
                   <User className="h-4 w-4" />
-                  {profile.full_name || "Profile"}
+                  {profile.real_name || profile.username || "Profile"}
                 </Button>
               </Link>
               <Button variant="outline" size="sm" onClick={handleLogout}>

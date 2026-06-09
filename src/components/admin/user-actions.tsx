@@ -45,11 +45,6 @@ export function UserActions({ user }: UserActionsProps) {
     });
 
     if (type === "permanent") {
-      await supabase.from("blacklist").insert({
-        email: user.email,
-        reason,
-        blacklisted_by: admin!.id,
-      });
     }
 
     await supabase.from("notifications").insert({
@@ -78,7 +73,7 @@ export function UserActions({ user }: UserActionsProps) {
         {user.role === "admin" ? "Remove Admin" : "Make Admin"}
       </Button>
 
-      {user.is_suspended ? (
+      {false ? (
         <Button variant="secondary" size="sm" onClick={unsuspend} loading={loading}>
           Unsuspend
         </Button>

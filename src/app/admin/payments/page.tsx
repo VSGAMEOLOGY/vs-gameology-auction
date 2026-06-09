@@ -18,8 +18,8 @@ export default function AdminPaymentsPage() {
     async function load() {
       let query = supabase
         .from("payments")
-        .select("*, auction:auctions(title), user:profiles(full_name, email)")
-        .order("created_at", { ascending: false });
+        .select("*, auction:auctions(title), user:profiles(real_name)")
+                .order("created_at", { ascending: false });
 
       if (filter !== "all") {
         query = query.eq("status", filter);
@@ -94,7 +94,7 @@ export default function AdminPaymentsPage() {
                   <div>
                     <p className="font-medium text-gray-900">{payment.auction?.title}</p>
                     <p className="text-sm text-gray-500">
-                      {payment.user?.full_name || payment.user?.email} · {formatDate(payment.created_at)}
+                    {payment.user?.real_name}
                     </p>
                     <p className="mt-1 text-lg font-bold text-brand-600">
                       {formatCurrency(payment.total_amount)}
