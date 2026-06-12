@@ -28,6 +28,7 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  console.log("AUTH USER:", user?.id);
 
   const isAuthPage =
     request.nextUrl.pathname.startsWith("/login") ||
@@ -53,11 +54,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAdminPage) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, is_suspended, suspended_until")
-      .eq("id", user.id)
-      .single();
+    const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+  
+  console.log("PROFILE:", profile);
+  console.log("PROFILE ERROR:", error);
 
     if (!profile || profile.role !== "admin") {
       const url = request.nextUrl.clone();

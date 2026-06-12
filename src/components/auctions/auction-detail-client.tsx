@@ -41,8 +41,8 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
-        {auction.image_url ? (
-          <Image src={auction.image_url} alt={auction.title} fill className="object-cover" priority />
+        {auction.cover_photo_url ? (
+          <Image src={auction.cover_photo_url} alt={auction.title} fill className="object-cover" priority />
         ) : (
           <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
         )}
@@ -58,10 +58,10 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
             <Badge variant={isActive ? "success" : "default"}>
               {auction.status.charAt(0).toUpperCase() + auction.status.slice(1)}
             </Badge>
-            {auction.fulfillment_type === "shipping" ? (
+            {auction.shipping_type === "shipping" ? (
               <span className="flex items-center gap-1 text-sm text-gray-600">
                 <Truck className="h-4 w-4" />
-                Shipping {auction.shipping_fee > 0 && `(+${formatCurrency(auction.shipping_fee)})`}
+                Shipping {(auction.shipping_fee ?? 0) > 0 && `(+${formatCurrency(auction.shipping_fee ?? 0)})`}                
               </span>
             ) : (
               <span className="flex items-center gap-1 text-sm text-gray-600">
@@ -73,21 +73,21 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
         </div>
 
         <div className="rounded-xl bg-brand-50 p-6">
-          <p className="text-sm text-brand-700">Current Price</p>
+          <p className="text-sm text-brand-700">Current Bid</p>
           <p className="text-3xl font-bold text-brand-600">
-            {formatCurrency(auction.current_price || auction.starting_price)}
+            {formatCurrency(auction.current_bid || auction.starting_price)}
           </p>
-          {isActive && auction.end_time && (
+          {isActive && auction.end_at && (
             <p className="mt-2 text-sm text-brand-700">
-              Ends in {getTimeRemaining(auction.end_time)} ({formatDate(auction.end_time)})
+              Ends in {getTimeRemaining(auction.end_at)} ({formatDate(auction.end_at)})
             </p>
           )}
         </div>
 
-        {auction.description && (
+        {auction.short_description && (
           <div>
             <h2 className="font-semibold text-gray-900">Description</h2>
-            <p className="mt-2 whitespace-pre-wrap text-gray-600">{auction.description}</p>
+            <p className="mt-2 whitespace-pre-wrap text-gray-600">{auction.short_description}</p>
           </div>
         )}
 
@@ -98,14 +98,8 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
           </div>
           <div>
             <p className="text-gray-500">Bid Increment</p>
-            <p className="font-medium">{formatCurrency(auction.bid_increment)}</p>
+            <p className="font-medium">{formatCurrency(auction.minimum_increment)}</p>
           </div>
-          {auction.reserve_price && (
-            <div>
-              <p className="text-gray-500">Reserve Price</p>
-              <p className="font-medium">{formatCurrency(auction.reserve_price)}</p>
-            </div>
-          )}
         </div>
 
         {isActive && userId && (

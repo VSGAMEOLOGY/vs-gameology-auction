@@ -23,9 +23,9 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     <Link href={`/auctions/${auction.id}`}>
       <Card className="group overflow-hidden transition-shadow hover:shadow-md">
         <div className="relative aspect-[4/3] bg-gray-100">
-          {auction.image_url ? (
+          {auction.cover_photo_url ? (
             <Image
-              src={auction.image_url}
+              src={auction.cover_photo_url}
               alt={auction.title}
               fill
               className="object-cover transition-transform group-hover:scale-105"
@@ -50,23 +50,23 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             <div>
               <p className="text-xs text-gray-500">Current Bid</p>
               <p className="text-lg font-bold text-brand-600">
-                {formatCurrency(auction.current_price || auction.starting_price)}
+                {formatCurrency(auction.current_bid || auction.starting_price)}
               </p>
             </div>
-            {auction.status === "active" && auction.end_time && (
+            {auction.status === "active" && auction.end_at && (
               <div className="text-right">
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock className="h-3 w-3" />
-                  {getTimeRemaining(auction.end_time)}
+                  {getTimeRemaining(auction.end_at)}
                 </p>
               </div>
             )}
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500">
-            {auction.fulfillment_type === "shipping" ? (
+            {auction.shipping_type === "shipping" ? (
               <span className="flex items-center gap-1">
                 <Truck className="h-3 w-3" />
-                Shipping {auction.shipping_fee > 0 && `+${formatCurrency(auction.shipping_fee)}`}
+                Shipping {(auction.shipping_fee ?? 0) > 0 && `+${formatCurrency(auction.shipping_fee ?? 0)}`}
               </span>
             ) : (
               <span className="flex items-center gap-1">
@@ -74,8 +74,8 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 Collection
               </span>
             )}
-            {auction.end_time && (
-              <span>Ends {formatDate(auction.end_time)}</span>
+            {auction.end_at && (
+              <span>Ends {formatDate(auction.end_at)}</span>
             )}
           </div>
         </CardContent>

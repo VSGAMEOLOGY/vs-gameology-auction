@@ -15,7 +15,9 @@ interface BidFormProps {
 }
 
 export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
-  const minBid = auction.current_price + auction.bid_increment;
+  const minBid =
+  (auction.current_bid ?? auction.starting_price) +
+  auction.minimum_increment;
   const [amount, setAmount] = useState(minBid.toString());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -45,14 +47,14 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
       setError(bidError.message);
     } else {
       setSuccess("Bid placed successfully!");
-      setAmount((bidAmount + auction.bid_increment).toString());
+      setAmount((bidAmount + auction.minimum_increment).toString());
       onBidPlaced?.();
     }
     setLoading(false);
   }
 
   function quickBid(multiplier: number) {
-    setAmount((minBid + auction.bid_increment * (multiplier - 1)).toString());
+    setAmount((minBid + auction.minimum_increment * (multiplier - 1)).toString());
   }
 
   return (

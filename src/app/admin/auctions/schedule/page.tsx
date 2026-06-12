@@ -11,7 +11,7 @@ export default async function SchedulePreviewPage() {
     .from("auctions")
     .select("*")
     .in("status", ["scheduled", "draft"])
-    .order("start_time", { ascending: true, nullsFirst: false });
+    .order("start_at", { ascending: true, nullsFirst: false });
 
   return (
     <div>

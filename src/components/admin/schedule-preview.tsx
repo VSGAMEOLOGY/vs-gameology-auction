@@ -15,8 +15,8 @@ function groupByDate(auctions: Auction[]) {
   const groups: Record<string, Auction[]> = {};
 
   for (const auction of auctions) {
-    const key = auction.start_time
-      ? new Date(auction.start_time).toLocaleDateString("en-AU", {
+    const key = auction.start_at
+      ? new Date(auction.start_at).toLocaleDateString("en-AU", {
           weekday: "long",
           year: "numeric",
           month: "long",
@@ -86,8 +86,8 @@ export function SchedulePreview({ auctions }: SchedulePreviewProps) {
             <div>
               <p className="text-sm text-gray-500">Next Start</p>
               <p className="text-sm font-bold">
-                {scheduled.find((a) => a.start_time && a.status === "scheduled")
-                  ? formatDate(scheduled.find((a) => a.start_time && a.status === "scheduled")!.start_time!)
+                {scheduled.find((a) => a.start_at && a.status === "scheduled")
+                  ? formatDate(scheduled.find((a) => a.start_at && a.status === "scheduled")!.start_at)
                   : "—"}
               </p>
             </div>
@@ -107,9 +107,9 @@ export function SchedulePreview({ auctions }: SchedulePreviewProps) {
           <CardContent className="divide-y divide-gray-100 p-0">
             {items
               .sort((a, b) => {
-                if (!a.start_time) return 1;
-                if (!b.start_time) return -1;
-                return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+                if (!a.start_at) return 1;
+                if (!b.start_at) return -1;
+                return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
               })
               .map((auction) => (
                 <div key={auction.id} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
@@ -126,14 +126,14 @@ export function SchedulePreview({ auctions }: SchedulePreviewProps) {
                       </Badge>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-3 text-sm text-gray-500">
-                      {auction.start_time && (
+                      {auction.start_at && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          Start: {formatDate(auction.start_time)}
+                          Start: {formatDate(auction.start_at)}
                         </span>
                       )}
-                      {auction.end_time && (
-                        <span>End: {formatDate(auction.end_time)}</span>
+                      {auction.end_at && (
+                        <span>End: {formatDate(auction.end_at)}</span>
                       )}
                     </div>
                   </div>
@@ -141,7 +141,7 @@ export function SchedulePreview({ auctions }: SchedulePreviewProps) {
                     <p className="font-semibold text-brand-600">
                       {formatCurrency(auction.starting_price)}
                     </p>
-                    <p className="text-xs text-gray-500 capitalize">{auction.fulfillment_type}</p>
+                    <p className="text-xs text-gray-500 capitalize">{auction.shipping_type}</p>
                   </div>
                 </div>
               ))}

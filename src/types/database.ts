@@ -55,20 +55,52 @@ export interface ShippingAddress {
 
 export interface Auction {
   id: string;
+
+  auction_number: string;
+  internal_sku: string | null;
+
   title: string;
-  description: string | null;
-  image_url: string | null;
+  short_description: string | null;
+  condition_notes: string | null;
+
+  category_id: number | null;
+  item_type: string;
+
+  quantity: number;
+
+  condition: string;
+  region: string;
+
+  languages: string[] | null;
+
   starting_price: number;
-  reserve_price: number | null;
-  current_price: number;
-  bid_increment: number;
-  shipping_fee: number;
-  fulfillment_type: FulfillmentType;
+  minimum_increment: number;
+
+  current_bid: number | null;
+  bid_count: number | null;
+  unique_bidder_count: number | null;
+  watcher_count: number | null;
+
+  anti_snipe_enabled: boolean | null;
+  anti_snipe_trigger_minutes: number | null;
+  anti_snipe_extend_minutes: number | null;
+
+  cover_photo_url: string | null;
+  gallery_photos: string[] | null;
+
+  start_at: string;
+  end_at: string;
+
   status: AuctionStatus;
-  start_time: string | null;
-  end_time: string | null;
-  winner_id: string | null;
-  created_by: string;
+
+  winner_user_id: string | null;
+
+  shipping_type: string | null;
+  shipping_fee: number | null;
+  courier_name: string | null;
+
+  created_by: string | null;
+
   created_at: string;
   updated_at: string;
 }
