@@ -50,7 +50,7 @@ export function BidHistory({ auctionId, refreshKey }: BidHistoryProps) {
         <div key={bid.id} className="flex items-center justify-between py-3">
           <div>
             <p className="text-sm font-medium text-gray-900">
-            {bid.bidder?.real_name || bid.bidder?.username || "Anonymous"}
+            {bid.bidder?.username || "Anonymous"}
               {i === 0 && (
                 <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
                   Highest
