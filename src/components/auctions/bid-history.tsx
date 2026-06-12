@@ -58,7 +58,7 @@ export function BidHistory({ auctionId }: BidHistoryProps) {
             </p>
             <p className="text-xs text-gray-500">{formatDate(bid.created_at)}</p>
           </div>
-          <p className="font-semibold text-brand-600">{formatCurrency(bid.amount)}</p>
+          <p className="font-semibold text-brand-600">{formatCurrency(bid.bid_amount)}</p>
         </div>
       ))}
     </div>
