@@ -109,7 +109,8 @@ export interface Bid {
   id: string;
   auction_id: string;
   bidder_id: string;
-  amount: number;
+  bid_amount: number;
+  is_winning: boolean;
   created_at: string;
   bidder?: Profile;
 }
