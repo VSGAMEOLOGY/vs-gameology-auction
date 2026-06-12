@@ -5,15 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number, currency = "AUD") {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency,
+export function formatCurrency(amount: number) {
+  return "RM " + new Intl.NumberFormat("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
 export function formatDate(date: string | Date) {
-  return new Intl.DateTimeFormat("en-AU", {
+  return new Intl.DateTimeFormat("en-MY", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(date));

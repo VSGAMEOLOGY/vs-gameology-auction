@@ -71,7 +71,7 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
       </div>
 
       <Input
-        label="Your Bid (AUD)"
+        label="Your Bid (RM)"
         type="number"
         step="0.01"
         min={minBid}
