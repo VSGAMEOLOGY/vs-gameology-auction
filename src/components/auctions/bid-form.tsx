@@ -46,10 +46,7 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
     if (bidError) {
       setError(bidError.message);
     } else {
-      await supabase
-        .from("auctions")
-        .update({ current_bid: bidAmount })
-        .eq("id", auction.id);
+
     
       setSuccess("Bid placed successfully!");
       setAmount((bidAmount + auction.minimum_increment).toString());
