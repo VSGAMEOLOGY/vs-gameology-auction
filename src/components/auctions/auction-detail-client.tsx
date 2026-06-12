@@ -19,6 +19,7 @@ interface AuctionDetailClientProps {
 
 export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailClientProps) {
   const [auction, setAuction] = useState(initialAuction);
+  const [bidRefreshKey, setBidRefreshKey] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
               <CardTitle>Place a Bid</CardTitle>
             </CardHeader>
             <CardContent>
-              <BidForm auction={auction} userId={userId} />
+            <BidForm auction={auction} userId={userId} onBidPlaced={() => setBidRefreshKey(k => k + 1)} />
             </CardContent>
           </Card>
         )}
@@ -129,7 +130,7 @@ export function AuctionDetailClient({ initialAuction, userId }: AuctionDetailCli
             <CardTitle>Bid History</CardTitle>
           </CardHeader>
           <CardContent>
-            <BidHistory auctionId={auction.id} />
+          <BidHistory auctionId={auction.id} refreshKey={bidRefreshKey} />
           </CardContent>
         </Card>
       </div>

@@ -42,14 +42,20 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
       bidder_id: userId,
       bid_amount: bidAmount,
     });
-
+    
     if (bidError) {
       setError(bidError.message);
     } else {
+      await supabase
+        .from("auctions")
+        .update({ current_bid: bidAmount })
+        .eq("id", auction.id);
+    
       setSuccess("Bid placed successfully!");
       setAmount((bidAmount + auction.minimum_increment).toString());
       onBidPlaced?.();
     }
+
     setLoading(false);
   }
 
@@ -77,13 +83,6 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
         required
       />
 
-      <div className="flex flex-wrap gap-2">
-        {[1, 2, 5].map((m) => (
-          <Button key={m} type="button" variant="outline" size="sm" onClick={() => quickBid(m)}>
-            +{m} increment
-          </Button>
-        ))}
-      </div>
 
       <Button type="submit" className="w-full" size="lg" loading={loading}>
         Place Bid

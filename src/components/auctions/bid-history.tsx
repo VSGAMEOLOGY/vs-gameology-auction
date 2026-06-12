@@ -7,9 +7,10 @@ import type { Bid } from "@/types/database";
 
 interface BidHistoryProps {
   auctionId: string;
+  refreshKey?: number;
 }
 
-export function BidHistory({ auctionId }: BidHistoryProps) {
+export function BidHistory({ auctionId, refreshKey }: BidHistoryProps) {
   const [bids, setBids] = useState<Bid[]>([]);
   const supabase = createClient();
 
@@ -37,7 +38,7 @@ export function BidHistory({ auctionId }: BidHistoryProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [auctionId, supabase]);
+  }, [auctionId, supabase, refreshKey]);
 
   if (bids.length === 0) {
     return <p className="text-sm text-gray-500">No bids yet. Be the first!</p>;
