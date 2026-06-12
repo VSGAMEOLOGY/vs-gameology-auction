@@ -40,7 +40,7 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
     const { error: bidError } = await supabase.from("bids").insert({
       auction_id: auction.id,
       bidder_id: userId,
-      amount: bidAmount,
+      bid_amount: bidAmount,
     });
 
     if (bidError) {
