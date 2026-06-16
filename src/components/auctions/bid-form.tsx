@@ -56,10 +56,6 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
     setLoading(false);
   }
 
-  function quickBid(multiplier: number) {
-    setAmount((minBid + auction.minimum_increment * (multiplier - 1)).toString());
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <Alert variant="error">{error}</Alert>}

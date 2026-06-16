@@ -195,6 +195,7 @@ export interface SuspensionRecord {
 type TableRow<
   T extends
     | Profile
+    | Category
     | ShippingAddress
     | Auction
     | Bid
