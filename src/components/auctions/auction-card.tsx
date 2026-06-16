@@ -68,6 +68,11 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 <Truck className="h-3 w-3" />
                 Shipping {(auction.shipping_fee ?? 0) > 0 && `+${formatCurrency(auction.shipping_fee ?? 0)}`}
               </span>
+            ) : auction.shipping_type === "both" ? (
+              <span className="flex items-center gap-1">
+                <Truck className="h-3 w-3" />
+                Shipping / Collection
+              </span>
             ) : (
               <span className="flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
@@ -78,6 +83,13 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               <span>Ends {formatDate(auction.end_at)}</span>
             )}
           </div>
+
+          {(auction.condition || (auction.region && auction.region !== "-")) && (
+            <div className="flex flex-wrap gap-x-3 text-xs text-gray-400">
+              {auction.condition && <span>{auction.condition}</span>}
+              {auction.region && auction.region !== "-" && <span>{auction.region}</span>}
+            </div>
+          )}
         </CardContent>
       </Card>
     </Link>
