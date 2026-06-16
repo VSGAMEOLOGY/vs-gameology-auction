@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
-import type { Auction, AuctionStatus } from "@/types/database";
+import type { Auction, AuctionStatus, Category } from "@/types/database";
 
 interface AuctionFormProps {
   auction?: Auction;
@@ -21,6 +21,15 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   const supabase = createClient();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("categories")
+      .select("id, name, slug, created_at")
+      .order("name")
+      .then(({ data }) => { if (data) setCategories(data); });
+  }, [supabase]);
 
   const [form, setForm] = useState({
     title: mode === "clone" && auction
@@ -206,6 +215,23 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   rows={3}
   className="sm:col-span-2"
 />
+
+        <Select
+          label="Category"
+          value={form.category_id}
+          onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+          options={[
+            { value: "", label: "Select category..." },
+            ...categories.map((c) => ({ value: c.id.toString(), label: c.name })),
+          ]}
+        />
+
+        <Input
+          label="Item Type"
+          value={form.item_type}
+          onChange={(e) => setForm({ ...form, item_type: e.target.value })}
+          placeholder="e.g. Base Game, Expansion, Promo"
+        />
 
         <Input
           label="Starting Price"

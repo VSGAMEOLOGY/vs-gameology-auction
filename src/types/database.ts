@@ -154,6 +154,13 @@ export interface Notification {
   created_at: string;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
 export interface BlacklistEntry {
   id: string;
   email: string;
@@ -207,6 +214,7 @@ export type Database = {
   public: {
     Tables: {
       profiles: TableRow<Profile>;
+      categories: TableRow<Category>;
       shipping_addresses: TableRow<ShippingAddress>;
       auctions: TableRow<Auction>;
       bids: TableRow<Bid>;
