@@ -14,19 +14,6 @@ export default async function AuctionsPage({
 }) {
   const params = await searchParams;
   const supabase = await createClient();
-  const now = new Date().toISOString();
-
-await supabase
-  .from("auctions")
-  .update({ status: "active" })
-  .eq("status", "scheduled")
-  .lte("start_at", now);
-
-  await supabase
-  .from("auctions")
-  .update({ status: "ended" })
-  .eq("status", "active")
-  .lte("end_at", now);
 
   let query = supabase
     .from("auctions")
