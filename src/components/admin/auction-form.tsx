@@ -10,10 +10,58 @@ import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
 import type { Auction, AuctionStatus, Category } from "@/types/database";
 
+const STANDARD_LANGUAGES = ["English", "Chinese", "Japanese"];
+
+const REGION_OPTIONS = [
+  { value: "-", label: "- (No Region)" },
+  { value: "R1", label: "R1" },
+  { value: "R2", label: "R2" },
+  { value: "R3", label: "R3" },
+  { value: "R4", label: "R4" },
+  { value: "All", label: "All" },
+];
+
+const CONDITION_OPTIONS = [
+  { value: "Brand New & Sealed", label: "Brand New & Sealed" },
+  { value: "Used Like New", label: "Used Like New" },
+  { value: "Used", label: "Used" },
+  { value: "Used No Box", label: "Used No Box" },
+  { value: "Others", label: "Others" },
+];
+
 interface AuctionFormProps {
   auction?: Auction;
   userId: string;
   mode?: "create" | "edit" | "clone";
+}
+
+function initShippingOptions(auction?: Auction): string[] {
+  if (!auction?.shipping_type) return ["shipping"];
+  if (auction.shipping_type === "both") return ["shipping", "collection"];
+  return [auction.shipping_type];
+}
+
+function initLanguagesSelected(auction?: Auction): string[] {
+  const langs = auction?.languages ?? [];
+  const standard = langs.filter((l) => STANDARD_LANGUAGES.includes(l));
+  const hasOthers = langs.some((l) => !STANDARD_LANGUAGES.includes(l));
+  return [...standard, ...(hasOthers ? ["Others"] : [])];
+}
+
+function initLanguagesOther(auction?: Auction): string {
+  return (auction?.languages ?? [])
+    .filter((l) => !STANDARD_LANGUAGES.includes(l))
+    .join(", ");
+}
+
+function initCondition(auction?: Auction): string {
+  const c = auction?.condition ?? "Brand New & Sealed";
+  return CONDITION_OPTIONS.some((o) => o.value === c) ? c : "Others";
+}
+
+function initConditionOther(auction?: Auction): string {
+  const c = auction?.condition ?? "";
+  return CONDITION_OPTIONS.some((o) => o.value === c) ? "" : c;
 }
 
 export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormProps) {
@@ -33,119 +81,93 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   }, [supabase]);
 
   const [form, setForm] = useState({
-    title: mode === "clone" && auction
-      ? `${auction.title} (Copy)`
-      : auction?.title ?? "",
-  
+    title: mode === "clone" && auction ? `${auction.title} (Copy)` : auction?.title ?? "",
     short_description: auction?.short_description ?? "",
     condition_notes: auction?.condition_notes ?? "",
-  
     category_id: auction?.category_id?.toString() ?? "",
     item_type: auction?.item_type ?? "",
-  
     quantity: auction?.quantity?.toString() ?? "1",
-  
-    condition: auction?.condition ?? "Used Complete Set",
-  
+    condition: initCondition(auction),
+    condition_other: initConditionOther(auction),
     region: auction?.region ?? "-",
-  
-    languages: auction?.languages?.join(", ") ?? "",
-  
+    languages_selected: initLanguagesSelected(auction),
+    languages_other: initLanguagesOther(auction),
     starting_price: auction?.starting_price?.toString() ?? "0",
-  
-    minimum_increment:
-      auction?.minimum_increment?.toString() ?? "5",
-  
-    shipping_fee:
-      auction?.shipping_fee?.toString() ?? "0",
-  
-    shipping_type:
-      auction?.shipping_type ?? "shipping",
-  
-    courier_name:
-      auction?.courier_name ?? "",
-  
-    cover_photo_url:
-      auction?.cover_photo_url ?? "",
-  
-    start_at:
-      auction?.start_at?.slice(0,16) ?? "",
-  
-    end_at:
-      auction?.end_at?.slice(0,16) ?? "",
-  
-    anti_snipe_enabled:
-      auction?.anti_snipe_enabled ?? true,
-  
-    anti_snipe_trigger_minutes:
-      auction?.anti_snipe_trigger_minutes?.toString() ?? "5",
-  
-    anti_snipe_extend_minutes:
-      auction?.anti_snipe_extend_minutes?.toString() ?? "5",
-  
-    status:
-      (auction?.status ?? "draft") as AuctionStatus,
+    minimum_increment: auction?.minimum_increment?.toString() ?? "5",
+    shipping_options: initShippingOptions(auction),
+    shipping_fee: auction?.shipping_fee?.toString() ?? "0",
+    courier_name: auction?.courier_name ?? "",
+    cover_photo_url: auction?.cover_photo_url ?? "",
+    start_at: auction?.start_at?.slice(0, 16) ?? "",
+    end_at: auction?.end_at?.slice(0, 16) ?? "",
+    anti_snipe_enabled: auction?.anti_snipe_enabled ?? true,
+    anti_snipe_trigger_minutes: auction?.anti_snipe_trigger_minutes?.toString() ?? "5",
+    anti_snipe_extend_minutes: auction?.anti_snipe_extend_minutes?.toString() ?? "5",
+    status: (auction?.status ?? "draft") as AuctionStatus,
   });
 
-  async function save(status: AuctionStatus) {
+  function toggleShippingOption(option: string) {
+    setForm((prev) => ({
+      ...prev,
+      shipping_options: prev.shipping_options.includes(option)
+        ? prev.shipping_options.filter((o) => o !== option)
+        : [...prev.shipping_options, option],
+    }));
+  }
 
-  
+  function toggleLanguage(lang: string) {
+    setForm((prev) => ({
+      ...prev,
+      languages_selected: prev.languages_selected.includes(lang)
+        ? prev.languages_selected.filter((l) => l !== lang)
+        : [...prev.languages_selected, lang],
+    }));
+  }
+
+  async function save(status: AuctionStatus) {
     setError("");
     setLoading(true);
 
+    const shippingType =
+      form.shipping_options.includes("shipping") && form.shipping_options.includes("collection")
+        ? "both"
+        : form.shipping_options[0] ?? "shipping";
+
+    const languages = [
+      ...form.languages_selected.filter((l) => l !== "Others"),
+      ...(form.languages_selected.includes("Others") && form.languages_other.trim()
+        ? form.languages_other.split(",").map((l) => l.trim()).filter(Boolean)
+        : []),
+    ];
+
+    const condition =
+      form.condition === "Others"
+        ? form.condition_other.trim() || "Others"
+        : form.condition;
+
     const payload = {
       title: form.title,
-
       short_description: form.short_description || null,
-      
       condition_notes: form.condition_notes || null,
-      
-      category_id: form.category_id
-        ? parseInt(form.category_id)
-        : null,
-      
+      category_id: form.category_id ? parseInt(form.category_id) : null,
       item_type: form.item_type,
-      
       quantity: parseInt(form.quantity),
-      
-      condition: form.condition,
-      
+      condition,
       region: form.region,
-      
-      languages: form.languages
-        ? form.languages
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean)
-        : [],
-      
+      languages,
       starting_price: parseFloat(form.starting_price),
-      
       minimum_increment: parseFloat(form.minimum_increment),
-      
-      shipping_fee: parseFloat(form.shipping_fee),
-      
-      shipping_type: form.shipping_type,
-      
+      shipping_fee: form.shipping_options.includes("shipping")
+        ? parseFloat(form.shipping_fee)
+        : 0,
+      shipping_type: shippingType,
       courier_name: form.courier_name || null,
-      
       cover_photo_url: form.cover_photo_url || null,
-      
-      start_at: form.start_at
-        ? new Date(form.start_at).toISOString()
-        : null,
-      
-      end_at: form.end_at
-        ? new Date(form.end_at).toISOString()
-        : null,
-      
+      start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
+      end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
       anti_snipe_enabled: form.anti_snipe_enabled,
-      
-      anti_snipe_trigger_minutes:
-        parseInt(form.anti_snipe_trigger_minutes),
-      
-      anti_snipe_extend_minutes:
-        parseInt(form.anti_snipe_extend_minutes),
+      anti_snipe_trigger_minutes: parseInt(form.anti_snipe_trigger_minutes),
+      anti_snipe_extend_minutes: parseInt(form.anti_snipe_extend_minutes),
       status,
       current_bid: parseFloat(form.starting_price),
       created_by: userId,
@@ -156,29 +178,18 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
         .from("auctions")
         .update(payload)
         .eq("id", auction.id);
-      if (updateError) {
-        setError(updateError.message);
-        setLoading(false);
-        return;
-      }
+      if (updateError) { setError(updateError.message); setLoading(false); return; }
       router.push("/admin/auctions");
     } else {
-
-    
-      const { error: insertError } = await supabase
-        .from("auctions")
-        .insert(payload);
-    
-
-      if (insertError) {
-        setError(insertError.message);
-        setLoading(false);
-        return;
-      }
+      const { error: insertError } = await supabase.from("auctions").insert(payload);
+      if (insertError) { setError(insertError.message); setLoading(false); return; }
       router.push("/admin/auctions");
     }
     setLoading(false);
   }
+
+  const shippingChecked = form.shipping_options.includes("shipping");
+  const collectionChecked = form.shipping_options.includes("collection");
 
   return (
     <div className="space-y-6">
@@ -192,30 +203,20 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           required
           className="sm:col-span-2"
         />
-<Textarea
-  label="Short Description"
-  value={form.short_description}
-  onChange={(e) =>
-    setForm({
-      ...form,
-      short_description: e.target.value,
-    })
-  }
-  rows={4}
-  className="sm:col-span-2"
-/>
-<Textarea
-  label="Condition Notes"
-  value={form.condition_notes}
-  onChange={(e) =>
-    setForm({
-      ...form,
-      condition_notes: e.target.value,
-    })
-  }
-  rows={3}
-  className="sm:col-span-2"
-/>
+        <Textarea
+          label="Short Description"
+          value={form.short_description}
+          onChange={(e) => setForm({ ...form, short_description: e.target.value })}
+          rows={4}
+          className="sm:col-span-2"
+        />
+        <Textarea
+          label="Condition Notes"
+          value={form.condition_notes}
+          onChange={(e) => setForm({ ...form, condition_notes: e.target.value })}
+          rows={3}
+          className="sm:col-span-2"
+        />
 
         <Select
           label="Category"
@@ -234,6 +235,57 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           placeholder="e.g. Base Game, Expansion, Promo"
         />
 
+        {/* Condition */}
+        <Select
+          label="Condition"
+          value={form.condition}
+          onChange={(e) => setForm({ ...form, condition: e.target.value, condition_other: "" })}
+          options={CONDITION_OPTIONS}
+        />
+        {form.condition === "Others" && (
+          <Input
+            label="Specify Condition"
+            value={form.condition_other}
+            onChange={(e) => setForm({ ...form, condition_other: e.target.value })}
+            placeholder="Describe the condition"
+          />
+        )}
+
+        {/* Region */}
+        <Select
+          label="Region"
+          value={form.region}
+          onChange={(e) => setForm({ ...form, region: e.target.value })}
+          options={REGION_OPTIONS}
+        />
+
+        {/* Languages */}
+        <div className="space-y-2 sm:col-span-2">
+          <p className="text-sm font-medium text-gray-700">Languages</p>
+          <div className="flex flex-wrap gap-6">
+            {[...STANDARD_LANGUAGES, "Others"].map((lang) => (
+              <label key={lang} className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.languages_selected.includes(lang)}
+                  onChange={() => toggleLanguage(lang)}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                />
+                {lang}
+              </label>
+            ))}
+          </div>
+          {form.languages_selected.includes("Others") && (
+            <Input
+              label="Specify other language(s)"
+              value={form.languages_other}
+              onChange={(e) => setForm({ ...form, languages_other: e.target.value })}
+              placeholder="e.g. Korean, German (comma separated)"
+            />
+          )}
+        </div>
+
+        {/* Pricing */}
         <Input
           label="Starting Price"
           type="number"
@@ -242,7 +294,6 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           onChange={(e) => setForm({ ...form, starting_price: e.target.value })}
           required
         />
-
         <Input
           label="Bid Increment"
           type="number"
@@ -251,22 +302,57 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           onChange={(e) => setForm({ ...form, minimum_increment: e.target.value })}
           required
         />
+
+        {/* Fulfillment */}
+        <div className="space-y-3 sm:col-span-2">
+          <p className="text-sm font-medium text-gray-700">Fulfillment Options</p>
+          <div className="flex flex-wrap gap-6">
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={shippingChecked}
+                onChange={() => toggleShippingOption("shipping")}
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              Shipping
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={collectionChecked}
+                onChange={() => toggleShippingOption("collection")}
+                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              Self Collection
+            </label>
+          </div>
+
+          {shippingChecked && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Shipping Fee"
+                type="number"
+                step="0.01"
+                value={form.shipping_fee}
+                onChange={(e) => setForm({ ...form, shipping_fee: e.target.value })}
+              />
+              <Input
+                label="Courier Name"
+                value={form.courier_name}
+                onChange={(e) => setForm({ ...form, courier_name: e.target.value })}
+                placeholder="e.g. J&T, Poslaju"
+              />
+            </div>
+          )}
+        </div>
+
         <Input
-          label="Shipping Fee"
-          type="number"
-          step="0.01"
-          value={form.shipping_fee}
-          onChange={(e) => setForm({ ...form, shipping_fee: e.target.value })}
+          label="Cover Photo URL"
+          value={form.cover_photo_url}
+          onChange={(e) => setForm({ ...form, cover_photo_url: e.target.value })}
+          className="sm:col-span-2"
         />
-        <Select
-          label="Fulfillment"
-          value={form.shipping_type}
-          onChange={(e) => setForm({ ...form, shipping_type: e.target.value, })}
-          options={[
-            { value: "shipping", label: "Shipping" },
-            { value: "collection", label: "Collection" },
-          ]}
-        />
+
         <Input
           label="Start Time"
           type="datetime-local"
