@@ -157,7 +157,8 @@ export interface Notification {
 export interface Category {
   id: number;
   name: string;
-  slug: string;
+  display_order: number | null;
+  is_active: boolean;
   created_at: string;
 }
 

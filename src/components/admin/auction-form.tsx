@@ -26,8 +26,9 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   useEffect(() => {
     supabase
       .from("categories")
-      .select("id, name, slug, created_at")
-      .order("name")
+      .select("id, name, display_order, is_active, created_at")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true, nullsFirst: false })
       .then(({ data }) => { if (data) setCategories(data); });
   }, [supabase]);
 
