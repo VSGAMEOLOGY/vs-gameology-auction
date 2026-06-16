@@ -57,8 +57,8 @@ export default async function AdminAuctionsPage() {
                   <Badge variant={statusVariant[auction.status]}>{auction.status}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-gray-500">
-                  {formatCurrency(auction.current_price || auction.starting_price)}
-                  {auction.end_time && ` · Ends ${formatDate(auction.end_time)}`}
+                  {formatCurrency(auction.current_bid || auction.starting_price)}
+                  {auction.end_at && ` · Ends ${formatDate(auction.end_at)}`}
                 </p>
               </div>
               <div className="flex gap-2">

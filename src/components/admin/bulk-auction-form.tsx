@@ -41,14 +41,14 @@ export function BulkAuctionForm({ userId }: BulkAuctionFormProps) {
         line.split("|").map((s) => s.trim());
       return {
         title,
-        description: description || null,
+        short_description: description || null,
         starting_price: parseFloat(startingPrice) || 0,
-        current_price: parseFloat(startingPrice) || 0,
-        bid_increment: parseFloat(bidIncrement) || 1,
+        current_bid: parseFloat(startingPrice) || 0,
+        minimum_increment: parseFloat(bidIncrement) || 1,
         shipping_fee: parseFloat(shippingFee) || 0,
-        fulfillment_type: (fulfillment === "collection" ? "collection" : "shipping") as "shipping" | "collection",
-        start_time: startTime ? new Date(startTime).toISOString() : null,
-        end_time: endTime ? new Date(endTime).toISOString() : null,
+        shipping_type: fulfillment === "collection" ? "collection" : "shipping",
+        start_at: startTime ? new Date(startTime).toISOString() : null,
+        end_at: endTime ? new Date(endTime).toISOString() : null,
         status,
         created_by: userId,
       };

@@ -23,15 +23,15 @@ export default async function AdminUsersPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-gray-900">
-                    {user.full_name || "No name"}
+                    {user.real_name || user.username || "No name"}
                   </p>
                   <Badge variant={user.role === "admin" ? "brand" : "default"}>
                     {user.role}
                   </Badge>
-                  {user.is_suspended && <Badge variant="danger">Suspended</Badge>}
+                  {user.status === "suspended" && <Badge variant="danger">Suspended</Badge>}
                 </div>
                 <p className="text-sm text-gray-500">
-                  {user.email} · Joined {formatDate(user.created_at)}
+                  @{user.username} · Joined {formatDate(user.created_at)}
                 </p>
               </div>
               <UserActions user={user} />
