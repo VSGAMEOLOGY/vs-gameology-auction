@@ -236,20 +236,22 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
         />
 
         {/* Condition */}
-        <Select
-          label="Condition"
-          value={form.condition}
-          onChange={(e) => setForm({ ...form, condition: e.target.value, condition_other: "" })}
-          options={CONDITION_OPTIONS}
-        />
-        {form.condition === "Others" && (
-          <Input
-            label="Specify Condition"
-            value={form.condition_other}
-            onChange={(e) => setForm({ ...form, condition_other: e.target.value })}
-            placeholder="Describe the condition"
+        <div className="space-y-3">
+          <Select
+            label="Condition"
+            value={form.condition}
+            onChange={(e) => setForm({ ...form, condition: e.target.value, condition_other: "" })}
+            options={CONDITION_OPTIONS}
           />
-        )}
+          {form.condition === "Others" && (
+            <Input
+              label="Specify Condition"
+              value={form.condition_other}
+              onChange={(e) => setForm({ ...form, condition_other: e.target.value })}
+              placeholder="Describe the condition"
+            />
+          )}
+        </div>
 
         {/* Region */}
         <Select
