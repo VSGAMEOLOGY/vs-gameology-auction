@@ -37,7 +37,7 @@ export function BulkAuctionForm({ userId }: BulkAuctionFormProps) {
     }
 
     const auctions = lines.map((line) => {
-      const [title, description, startingPrice, bidIncrement, shippingFee, fulfillment] =
+      const [title, description, startingPrice, bidIncrement, shippingFeeWest, shippingFeeEast, fulfillment] =
         line.split("|").map((s) => s.trim());
       return {
         title,
@@ -45,7 +45,8 @@ export function BulkAuctionForm({ userId }: BulkAuctionFormProps) {
         starting_price: parseFloat(startingPrice) || 0,
         current_bid: parseFloat(startingPrice) || 0,
         minimum_increment: parseFloat(bidIncrement) || 1,
-        shipping_fee: parseFloat(shippingFee) || 0,
+        shipping_fee_west: parseFloat(shippingFeeWest) || 0,
+        shipping_fee_east: parseFloat(shippingFeeEast) || 0,
         shipping_type: fulfillment === "collection" ? "collection" : "shipping",
         start_at: startTime ? new Date(startTime).toISOString() : null,
         end_at: endTime ? new Date(endTime).toISOString() : null,
@@ -73,7 +74,7 @@ export function BulkAuctionForm({ userId }: BulkAuctionFormProps) {
       <Alert variant="info">
         Format: one auction per line, fields separated by | (pipe):
         <br />
-        <code className="text-xs">Title | Description | Starting Price | Bid Increment | Shipping Fee | shipping/collection</code>
+        <code className="text-xs">Title | Description | Starting Price | Bid Increment | Shipping Fee West | Shipping Fee East | shipping/collection</code>
       </Alert>
 
       <Textarea
@@ -81,7 +82,7 @@ export function BulkAuctionForm({ userId }: BulkAuctionFormProps) {
         value={csvData}
         onChange={(e) => setCsvData(e.target.value)}
         rows={10}
-        placeholder="Rare Card #1 | Limited edition | 50 | 5 | 10 | shipping&#10;Rare Card #2 | Mint condition | 100 | 10 | 15 | collection"
+        placeholder="Rare Card #1 | Limited edition | 50 | 5 | 10 | 15 | shipping&#10;Rare Card #2 | Mint condition | 100 | 10 | 0 | 0 | collection"
         required
       />
 

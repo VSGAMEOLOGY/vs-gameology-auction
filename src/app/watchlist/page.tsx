@@ -7,7 +7,7 @@ export default async function WatchlistPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: items } = await supabase
-    .from("watchlist")
+    .from("watchlists")
     .select("*, auction:auctions(*)")
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false });

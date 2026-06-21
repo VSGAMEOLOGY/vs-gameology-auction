@@ -43,15 +43,17 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
 
   const detailFields: { label: string; value: string }[] = [];
   if (categoryName) detailFields.push({ label: "Category", value: categoryName });
-  if (auction.item_type) detailFields.push({ label: "Item Type", value: auction.item_type });
   if (auction.condition) detailFields.push({ label: "Condition", value: auction.condition });
   if (auction.region && auction.region !== "-") detailFields.push({ label: "Region", value: auction.region });
   if (auction.quantity > 1) detailFields.push({ label: "Quantity", value: String(auction.quantity) });
   if (auction.languages && auction.languages.length > 0) {
     detailFields.push({ label: "Language(s)", value: auction.languages.join(", ") });
   }
-  if (hasShipping && auction.courier_name) {
-    detailFields.push({ label: "Courier", value: auction.courier_name });
+  if (hasShipping) {
+    if ((auction.shipping_fee_west ?? 0) > 0)
+      detailFields.push({ label: "Shipping (West MY)", value: formatCurrency(auction.shipping_fee_west ?? 0) });
+    if ((auction.shipping_fee_east ?? 0) > 0)
+      detailFields.push({ label: "Shipping (East MY)", value: formatCurrency(auction.shipping_fee_east ?? 0) });
   }
   if (auction.auction_number) {
     detailFields.push({ label: "Auction #", value: auction.auction_number });
@@ -85,7 +87,7 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
             {hasShipping && (
               <span className="flex items-center gap-1 text-sm text-gray-600">
                 <Truck className="h-4 w-4" />
-                Shipping{(auction.shipping_fee ?? 0) > 0 && ` (+${formatCurrency(auction.shipping_fee ?? 0)})`}
+                Shipping
               </span>
             )}
             {hasCollection && (
@@ -136,14 +138,6 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Condition notes */}
-        {auction.condition_notes && (
-          <div>
-            <h2 className="font-semibold text-gray-900">Condition Notes</h2>
-            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{auction.condition_notes}</p>
           </div>
         )}
 

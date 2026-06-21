@@ -83,9 +83,7 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   const [form, setForm] = useState({
     title: mode === "clone" && auction ? `${auction.title} (Copy)` : auction?.title ?? "",
     short_description: auction?.short_description ?? "",
-    condition_notes: auction?.condition_notes ?? "",
     category_id: auction?.category_id?.toString() ?? "",
-    item_type: auction?.item_type ?? "",
     quantity: auction?.quantity?.toString() ?? "1",
     condition: initCondition(auction),
     condition_other: initConditionOther(auction),
@@ -95,8 +93,8 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     starting_price: auction?.starting_price?.toString() ?? "0",
     minimum_increment: auction?.minimum_increment?.toString() ?? "5",
     shipping_options: initShippingOptions(auction),
-    shipping_fee: auction?.shipping_fee?.toString() ?? "0",
-    courier_name: auction?.courier_name ?? "",
+    shipping_fee_west: auction?.shipping_fee_west?.toString() ?? "0",
+    shipping_fee_east: auction?.shipping_fee_east?.toString() ?? "0",
     cover_photo_url: auction?.cover_photo_url ?? "",
     start_at: auction?.start_at?.slice(0, 16) ?? "",
     end_at: auction?.end_at?.slice(0, 16) ?? "",
@@ -148,20 +146,20 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     const payload = {
       title: form.title,
       short_description: form.short_description || null,
-      condition_notes: form.condition_notes || null,
       category_id: form.category_id ? parseInt(form.category_id) : null,
-      item_type: form.item_type,
       quantity: parseInt(form.quantity),
       condition,
       region: form.region,
       languages,
       starting_price: parseFloat(form.starting_price),
       minimum_increment: parseFloat(form.minimum_increment),
-      shipping_fee: form.shipping_options.includes("shipping")
-        ? parseFloat(form.shipping_fee)
+      shipping_fee_west: form.shipping_options.includes("shipping")
+        ? parseFloat(form.shipping_fee_west)
+        : 0,
+      shipping_fee_east: form.shipping_options.includes("shipping")
+        ? parseFloat(form.shipping_fee_east)
         : 0,
       shipping_type: shippingType,
-      courier_name: form.courier_name || null,
       cover_photo_url: form.cover_photo_url || null,
       start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
       end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
@@ -210,14 +208,6 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           rows={4}
           className="sm:col-span-2"
         />
-        <Textarea
-          label="Condition Notes"
-          value={form.condition_notes}
-          onChange={(e) => setForm({ ...form, condition_notes: e.target.value })}
-          rows={3}
-          className="sm:col-span-2"
-        />
-
         <Select
           label="Category"
           value={form.category_id}
@@ -226,13 +216,6 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
             { value: "", label: "Select category..." },
             ...categories.map((c) => ({ value: c.id.toString(), label: c.name })),
           ]}
-        />
-
-        <Input
-          label="Item Type"
-          value={form.item_type}
-          onChange={(e) => setForm({ ...form, item_type: e.target.value })}
-          placeholder="e.g. Base Game, Expansion, Promo"
         />
 
         {/* Condition */}
@@ -332,17 +315,18 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           {shippingChecked && (
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
-                label="Shipping Fee"
+                label="Shipping Fee — West Malaysia (RM)"
                 type="number"
-                step="0.01"
-                value={form.shipping_fee}
-                onChange={(e) => setForm({ ...form, shipping_fee: e.target.value })}
+                step="1"
+                value={form.shipping_fee_west}
+                onChange={(e) => setForm({ ...form, shipping_fee_west: e.target.value })}
               />
               <Input
-                label="Courier Name"
-                value={form.courier_name}
-                onChange={(e) => setForm({ ...form, courier_name: e.target.value })}
-                placeholder="e.g. J&T, Poslaju"
+                label="Shipping Fee — East Malaysia (RM)"
+                type="number"
+                step="1"
+                value={form.shipping_fee_east}
+                onChange={(e) => setForm({ ...form, shipping_fee_east: e.target.value })}
               />
             </div>
           )}

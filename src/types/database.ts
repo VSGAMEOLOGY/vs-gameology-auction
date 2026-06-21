@@ -61,10 +61,8 @@ export interface Auction {
 
   title: string;
   short_description: string | null;
-  condition_notes: string | null;
 
   category_id: number | null;
-  item_type: string;
 
   quantity: number;
 
@@ -96,8 +94,8 @@ export interface Auction {
   winner_user_id: string | null;
 
   shipping_type: string | null;
-  shipping_fee: number | null;
-  courier_name: string | null;
+  shipping_fee_west: number | null;
+  shipping_fee_east: number | null;
 
   created_by: string | null;
 
@@ -220,7 +218,7 @@ export type Database = {
       shipping_addresses: TableRow<ShippingAddress>;
       auctions: TableRow<Auction>;
       bids: TableRow<Bid>;
-      watchlist: TableRow<WatchlistItem>;
+      watchlists: TableRow<WatchlistItem>;
       payments: TableRow<Payment>;
       notifications: TableRow<Notification>;
       blacklist: TableRow<BlacklistEntry>;

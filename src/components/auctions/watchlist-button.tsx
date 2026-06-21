@@ -19,7 +19,7 @@ export function WatchlistButton({ auctionId, userId }: WatchlistButtonProps) {
   useEffect(() => {
     async function check() {
       const { data } = await supabase
-        .from("watchlist")
+        .from("watchlists")
         .select("id")
         .eq("user_id", userId)
         .eq("auction_id", auctionId)
@@ -33,13 +33,13 @@ export function WatchlistButton({ auctionId, userId }: WatchlistButtonProps) {
     setLoading(true);
     if (isWatching) {
       await supabase
-        .from("watchlist")
+        .from("watchlists")
         .delete()
         .eq("user_id", userId)
         .eq("auction_id", auctionId);
       setIsWatching(false);
     } else {
-      await supabase.from("watchlist").insert({ user_id: userId, auction_id: auctionId });
+      await supabase.from("watchlists").insert({ user_id: userId, auction_id: auctionId });
       setIsWatching(true);
     }
     setLoading(false);

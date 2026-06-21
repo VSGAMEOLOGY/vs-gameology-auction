@@ -66,7 +66,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             {auction.shipping_type === "shipping" ? (
               <span className="flex items-center gap-1">
                 <Truck className="h-3 w-3" />
-                Shipping {(auction.shipping_fee ?? 0) > 0 && `+${formatCurrency(auction.shipping_fee ?? 0)}`}
+                Shipping {(auction.shipping_fee_west ?? 0) > 0 && `from ${formatCurrency(auction.shipping_fee_west ?? 0)}`}
               </span>
             ) : auction.shipping_type === "both" ? (
               <span className="flex items-center gap-1">
