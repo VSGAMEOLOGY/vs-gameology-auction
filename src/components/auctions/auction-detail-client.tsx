@@ -49,12 +49,6 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
   if (auction.languages && auction.languages.length > 0) {
     detailFields.push({ label: "Language(s)", value: auction.languages.join(", ") });
   }
-  if (hasShipping) {
-    if ((auction.shipping_fee_west ?? 0) > 0)
-      detailFields.push({ label: "Shipping (West MY)", value: formatCurrency(auction.shipping_fee_west ?? 0) });
-    if ((auction.shipping_fee_east ?? 0) > 0)
-      detailFields.push({ label: "Shipping (East MY)", value: formatCurrency(auction.shipping_fee_east ?? 0) });
-  }
   if (auction.auction_number) {
     detailFields.push({ label: "Auction #", value: auction.auction_number });
   }
@@ -79,23 +73,11 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
             {userId && <WatchlistButton auctionId={auction.id} userId={userId} />}
           </div>
 
-          {/* Status + fulfillment badges */}
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          {/* Status badge */}
+          <div className="mt-2">
             <Badge variant={isActive ? "success" : "default"}>
               {auction.status.charAt(0).toUpperCase() + auction.status.slice(1)}
             </Badge>
-            {hasShipping && (
-              <span className="flex items-center gap-1 text-sm text-gray-600">
-                <Truck className="h-4 w-4" />
-                Shipping
-              </span>
-            )}
-            {hasCollection && (
-              <span className="flex items-center gap-1 text-sm text-gray-600">
-                <MapPin className="h-4 w-4" />
-                Self Collection
-              </span>
-            )}
           </div>
         </div>
 
@@ -123,6 +105,35 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
           <div>
             <h2 className="font-semibold text-gray-900">Description</h2>
             <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{auction.short_description}</p>
+          </div>
+        )}
+
+        {/* Fulfillment options */}
+        {(hasShipping || hasCollection) && (
+          <div className="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-4">
+            <p className="text-sm font-semibold text-gray-700">Delivery Options</p>
+            {hasShipping && (
+              <div className="flex items-start gap-3 text-sm">
+                <Truck className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
+                <div>
+                  <p className="font-medium text-gray-800">Shipping Fee</p>
+                  <p className="text-gray-600">
+                    RM {(auction.shipping_fee_west ?? 0).toFixed(0)} (West Malaysia)
+                    {" / "}
+                    RM {(auction.shipping_fee_east ?? 0).toFixed(0)} (East Malaysia)
+                  </p>
+                </div>
+              </div>
+            )}
+            {hasCollection && (
+              <div className="flex items-start gap-3 text-sm">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
+                <div>
+                  <p className="font-medium text-gray-800">Self Collection</p>
+                  <p className="text-gray-600">Free</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
