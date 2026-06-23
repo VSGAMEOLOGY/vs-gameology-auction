@@ -15,13 +15,13 @@ export default async function AdminDashboard() {
   ] = await Promise.all([
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("auctions").select("*", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("payments").select("*", { count: "exact", head: true }).eq("status", "submitted"),
+    supabase.from("payments").select("*", { count: "exact", head: true }).eq("payment_status", "submitted"),
     supabase
       .from("admin_activity_logs")
       .select("*, admin:profiles(full_name, email)")
       .order("created_at", { ascending: false })
       .limit(10),
-    supabase.from("payments").select("total_amount").eq("status", "verified"),
+    supabase.from("payments").select("total_amount").eq("payment_status", "verified"),
   ]);
 
   const totalRevenue = revenue?.reduce((sum, p) => sum + Number(p.total_amount), 0) ?? 0;

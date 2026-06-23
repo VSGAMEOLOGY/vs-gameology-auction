@@ -6,7 +6,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Bid } from "@/types/database";
 
 interface BidHistoryProps {
-  auctionId: string;
+  auctionId: number;
   refreshKey?: number;
 }
 

@@ -37,7 +37,7 @@ export interface Profile {
 }
 
 export interface ShippingAddress {
-  id: string;
+  id: number;
   user_id: string;
   label: string;
   recipient_name: string;
@@ -54,7 +54,7 @@ export interface ShippingAddress {
 }
 
 export interface Auction {
-  id: string;
+  id: number;
 
   auction_number: string;
   internal_sku: string | null;
@@ -104,8 +104,8 @@ export interface Auction {
 }
 
 export interface Bid {
-  id: string;
-  auction_id: string;
+  id: number;
+  auction_id: number;
   bidder_id: string;
   bid_amount: number;
   is_winning: boolean;
@@ -114,40 +114,43 @@ export interface Bid {
 }
 
 export interface WatchlistItem {
-  id: string;
+  id: number;
   user_id: string;
-  auction_id: string;
+  auction_id: number;
   created_at: string;
   auction?: Auction;
 }
 
 export interface Payment {
-  id: string;
-  auction_id: string;
-  user_id: string;
-  amount: number;
+  id: number;
+  auction_id: number;
+  winner_user_id: string;
+  winning_bid: number;
   shipping_fee: number;
   total_amount: number;
-  fulfillment_type: FulfillmentType;
-  shipping_address_id: string | null;
-  status: PaymentStatus;
-  payment_proof_url: string | null;
+  payment_status: PaymentStatus;
+  fulfillment_type: FulfillmentType | null;
+  receipt_url: string | null;
+  payment_due_at: string | null;
+  extension_granted: boolean;
+  extension_until: string | null;
+  shipping_address_id: number | null;
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;
   created_at: string;
   updated_at: string;
   auction?: Auction;
-  user?: Profile;
+  winner?: Profile;
 }
 
 export interface Notification {
-  id: string;
+  id: number;
   user_id: string;
-  type: NotificationType;
+  notification_type: NotificationType;
   title: string;
   message: string;
-  link: string | null;
+  related_auction_id: number | null;
   is_read: boolean;
   created_at: string;
 }
@@ -229,7 +232,7 @@ export type Database = {
     Functions: {
       activate_scheduled_auctions: { Args: Record<string, never>; Returns: undefined };
       end_expired_auctions: { Args: Record<string, never>; Returns: undefined };
-      end_auction: { Args: { p_auction_id: string }; Returns: undefined };
+      end_auction: { Args: { p_auction_id: number }; Returns: undefined };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       is_suspended: { Args: Record<string, never>; Returns: boolean };
     };

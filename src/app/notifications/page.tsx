@@ -44,7 +44,7 @@ export default function NotificationsPage() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   }
 
-  async function markRead(id: string) {
+  async function markRead(id: number) {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
@@ -89,8 +89,16 @@ export default function NotificationsPage() {
                         Mark read
                       </Button>
                     )}
-                    {notification.link && (
-                      <Link href={notification.link}>
+                    {notification.related_auction_id != null && (
+                      <Link
+                        href={
+                          notification.notification_type === "auction_won" ||
+                          notification.notification_type === "payment_verified" ||
+                          notification.notification_type === "payment_rejected"
+                            ? `/payments/${notification.related_auction_id}`
+                            : `/auctions/${notification.related_auction_id}`
+                        }
+                      >
                         <Button variant="outline" size="sm">View</Button>
                       </Link>
                     )}

@@ -49,7 +49,7 @@ export function UserActions({ user }: UserActionsProps) {
 
     await supabase.from("notifications").insert({
       user_id: user.id,
-      type: "account_suspended",
+      notification_type: "account_suspended",
       title: "Account Suspended",
       message: reason,
     });

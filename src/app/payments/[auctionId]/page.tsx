@@ -33,12 +33,14 @@ export default function PaymentDetailPage() {
         .from("payments")
         .select("*, auction:auctions(*)")
         .eq("auction_id", auctionId)
-        .eq("user_id", user.id)
+        .eq("winner_user_id", user.id)
         .single();
       if (pay) {
         setPayment(pay);
         const auctionShippingType = (pay.auction as { shipping_type?: string } | undefined)?.shipping_type;
-        if (auctionShippingType === "collection") setFulfillmentChoice("collection");
+        if (pay.fulfillment_type === "collection" || auctionShippingType === "collection") {
+          setFulfillmentChoice("collection");
+        }
       }
 
       const { data: addrs } = await supabase
@@ -48,7 +50,7 @@ export default function PaymentDetailPage() {
       if (addrs) {
         setAddresses(addrs);
         const defaultAddr = addrs.find((a) => a.is_default);
-        if (defaultAddr) setAddressId(defaultAddr.id);
+        if (defaultAddr) setAddressId(defaultAddr.id.toString());
       }
     }
     load();
@@ -63,14 +65,14 @@ export default function PaymentDetailPage() {
 
     const isCollection = fulfillmentChoice === "collection";
     const updates: Partial<Payment> = {
-      payment_proof_url: proofUrl,
-      status: "submitted",
+      receipt_url: proofUrl,
+      payment_status: "submitted",
       fulfillment_type: fulfillmentChoice,
       shipping_fee: isCollection ? 0 : payment.shipping_fee,
-      total_amount: isCollection ? payment.amount : payment.total_amount,
+      total_amount: isCollection ? payment.winning_bid : payment.total_amount,
     };
     if (!isCollection && addressId) {
-      updates.shipping_address_id = addressId;
+      updates.shipping_address_id = Number(addressId);
     }
 
     const { error: updateError } = await supabase
@@ -95,7 +97,7 @@ export default function PaymentDetailPage() {
   const canChooseFulfillment = auctionShippingType === "both";
   const isCollection = fulfillmentChoice === "collection";
   const displayedShippingFee = isCollection ? 0 : payment.shipping_fee;
-  const displayedTotal = payment.amount + displayedShippingFee;
+  const displayedTotal = payment.winning_bid + displayedShippingFee;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -105,13 +107,13 @@ export default function PaymentDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>{payment.auction?.title}</CardTitle>
-            <Badge variant={payment.status === "verified" ? "success" : "warning"}>
-              {payment.status}
+            <Badge variant={payment.payment_status === "verified" ? "success" : "warning"}>
+              {payment.payment_status}
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {canChooseFulfillment && payment.status === "pending" && (
+          {canChooseFulfillment && payment.payment_status === "pending" && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">Fulfillment Method</p>
               <div className="flex gap-6">
@@ -144,7 +146,7 @@ export default function PaymentDetailPage() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-gray-500">Winning Bid</p>
-              <p className="font-medium">{formatCurrency(payment.amount)}</p>
+              <p className="font-medium">{formatCurrency(payment.winning_bid)}</p>
             </div>
             <div>
               <p className="text-gray-500">Shipping Fee</p>
@@ -166,7 +168,7 @@ export default function PaymentDetailPage() {
             <Alert variant="info">Admin note: {payment.admin_notes}</Alert>
           )}
 
-          {payment.status === "pending" && (
+          {payment.payment_status === "pending" && (
             <form onSubmit={handleSubmit} className="space-y-4 border-t pt-4">
               {error && <Alert variant="error">{error}</Alert>}
               {message && <Alert variant="success">{message}</Alert>}
@@ -177,7 +179,7 @@ export default function PaymentDetailPage() {
                   value={addressId}
                   onChange={(e) => setAddressId(e.target.value)}
                   options={addresses.map((a) => ({
-                    value: a.id,
+                    value: a.id.toString(),
                     label: `${a.label} - ${a.address_line1}, ${a.city}`,
                   }))}
                 />

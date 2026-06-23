@@ -19,8 +19,8 @@ export default async function PaymentsPage() {
 
   const { data: payments } = await supabase
     .from("payments")
-    .select("*, auction:auctions(title, image_url)")
-    .eq("user_id", user!.id)
+    .select("*, auction:auctions(title, shipping_type)")
+    .eq("winner_user_id", user!.id)
     .order("created_at", { ascending: false });
 
   return (
@@ -42,15 +42,15 @@ export default async function PaymentsPage() {
                     </p>
                     <p className="text-sm text-gray-500">
                       {formatDate(payment.created_at)} &middot;{" "}
-                      {payment.fulfillment_type === "shipping" ? "Shipping" : "Collection"}
+                      {payment.auction?.shipping_type === "collection" ? "Collection" : "Shipping"}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-brand-600">
                       {formatCurrency(payment.total_amount)}
                     </p>
-                    <Badge variant={statusVariant[payment.status]}>
-                      {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                    <Badge variant={statusVariant[payment.payment_status]}>
+                      {payment.payment_status.charAt(0).toUpperCase() + payment.payment_status.slice(1)}
                     </Badge>
                   </div>
                 </CardContent>

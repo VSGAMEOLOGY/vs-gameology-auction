@@ -18,11 +18,11 @@ export default function AdminPaymentsPage() {
     async function load() {
       let query = supabase
         .from("payments")
-        .select("*, auction:auctions(title), user:profiles(real_name)")
-                .order("created_at", { ascending: false });
+        .select("*, auction:auctions(title), winner:profiles!winner_user_id(real_name)")
+        .order("created_at", { ascending: false });
 
       if (filter !== "all") {
-        query = query.eq("status", filter);
+        query = query.eq("payment_status", filter);
       }
 
       const { data } = await query;
@@ -36,28 +36,28 @@ export default function AdminPaymentsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const status = approved ? "verified" : "rejected";
+    const payment_status = approved ? "verified" : "rejected";
     await supabase.from("payments").update({
-      status,
+      payment_status,
       verified_by: user.id,
       verified_at: new Date().toISOString(),
     }).eq("id", payment.id);
 
     await supabase.from("notifications").insert({
-      user_id: payment.user_id,
-      type: approved ? "payment_verified" : "payment_rejected",
+      user_id: payment.winner_user_id,
+      notification_type: approved ? "payment_verified" : "payment_rejected",
       title: approved ? "Payment Verified" : "Payment Rejected",
       message: approved
         ? `Your payment for ${payment.auction?.title} has been verified.`
         : `Your payment for ${payment.auction?.title} was rejected. Please contact support.`,
-      link: `/payments/${payment.auction_id}`,
+      related_auction_id: payment.auction_id,
     });
 
     await supabase.from("admin_activity_logs").insert({
-      admin_id: user.id,
-      action: approved ? "verify_payment" : "reject_payment",
-      entity_type: "payment",
-      entity_id: payment.id,
+      admin_user_id: user.id,
+      action_type: approved ? "verify_payment" : "reject_payment",
+      target_table: "payments",
+      target_record_id: payment.id.toString(),
     });
 
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
@@ -94,14 +94,14 @@ export default function AdminPaymentsPage() {
                   <div>
                     <p className="font-medium text-gray-900">{payment.auction?.title}</p>
                     <p className="text-sm text-gray-500">
-                    {payment.user?.real_name}
+                    {payment.winner?.real_name}
                     </p>
                     <p className="mt-1 text-lg font-bold text-brand-600">
                       {formatCurrency(payment.total_amount)}
                     </p>
-                    {payment.payment_proof_url && (
+                    {payment.receipt_url && (
                       <a
-                        href={payment.payment_proof_url}
+                        href={payment.receipt_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-1 inline-block text-sm text-brand-600 hover:underline"
@@ -111,10 +111,10 @@ export default function AdminPaymentsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={payment.status === "verified" ? "success" : "warning"}>
-                      {payment.status}
+                    <Badge variant={payment.payment_status === "verified" ? "success" : "warning"}>
+                      {payment.payment_status}
                     </Badge>
-                    {payment.status === "submitted" && (
+                    {payment.payment_status === "submitted" && (
                       <>
                         <Button size="sm" onClick={() => verifyPayment(payment, true)}>
                           Verify

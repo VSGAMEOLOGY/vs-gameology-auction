@@ -61,7 +61,7 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
     setLoading(false);
   }
 
-  async function setDefault(id: string) {
+  async function setDefault(id: number) {
     await supabase
       .from("shipping_addresses")
       .update({ is_default: true })
@@ -71,7 +71,7 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
     );
   }
 
-  async function remove(id: string) {
+  async function remove(id: number) {
     await supabase.from("shipping_addresses").delete().eq("id", id);
     setAddresses((prev) => prev.filter((a) => a.id !== id));
   }
