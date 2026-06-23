@@ -25,7 +25,7 @@ RETURNS VOID AS $$
 DECLARE
   auction_record RECORD;
   winning_bid RECORD;
-  v_fulfillment fulfillment_type;
+  v_fulfillment TEXT;
   v_shipping_fee DECIMAL(12, 2);
 BEGIN
   SELECT * INTO auction_record FROM auctions WHERE id = p_auction_id FOR UPDATE;
