@@ -28,6 +28,12 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (auction.status !== "active") {
+      setError("This auction is no longer active.");
+      return;
+    }
+
     setLoading(true);
 
     const bidAmount = Math.round(parseFloat(amount));
@@ -77,7 +83,13 @@ export function BidForm({ auction, userId, onBidPlaced }: BidFormProps) {
       />
 
 
-      <Button type="submit" className="w-full" size="lg" loading={loading}>
+      <Button
+        type="submit"
+        className="w-full"
+        size="lg"
+        loading={loading}
+        disabled={auction.status !== "active"}
+      >
         Place Bid
       </Button>
     </form>
