@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
 import type { Auction, AuctionStatus, Category } from "@/types/database";
+
+const AUCTION_IMAGES_BUCKET = "auction-images";
+const MAX_GALLERY_PHOTOS = 10;
 
 const STANDARD_LANGUAGES = ["English", "Chinese", "Japanese"];
 
@@ -70,6 +74,8 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
 
   useEffect(() => {
     supabase
@@ -96,6 +102,7 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     shipping_fee_west: auction?.shipping_fee_west?.toString() ?? "0",
     shipping_fee_east: auction?.shipping_fee_east?.toString() ?? "0",
     cover_photo_url: auction?.cover_photo_url ?? "",
+    gallery_photos: (auction?.gallery_photos ?? []) as string[],
     start_at: auction?.start_at?.slice(0, 16) ?? "",
     end_at: auction?.end_at?.slice(0, 16) ?? "",
     anti_snipe_enabled: auction?.anti_snipe_enabled ?? true,
@@ -122,8 +129,70 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     }));
   }
 
+  async function uploadAuctionImage(file: File, folder: string): Promise<string> {
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${folder}/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from(AUCTION_IMAGES_BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert: false });
+    if (uploadError) throw uploadError;
+    const { data } = supabase.storage.from(AUCTION_IMAGES_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function handleCoverPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+    setCoverUploading(true);
+    try {
+      const url = await uploadAuctionImage(file, "covers");
+      setForm((prev) => ({ ...prev, cover_photo_url: url }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload cover photo");
+    } finally {
+      setCoverUploading(false);
+    }
+  }
+
+  async function handleGalleryPhotosChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+
+    const remaining = MAX_GALLERY_PHOTOS - form.gallery_photos.length;
+    if (remaining <= 0) {
+      setError(`You can upload up to ${MAX_GALLERY_PHOTOS} gallery photos`);
+      return;
+    }
+
+    setError("");
+    setGalleryUploading(true);
+    try {
+      const urls = await Promise.all(
+        files.slice(0, remaining).map((file) => uploadAuctionImage(file, "gallery"))
+      );
+      setForm((prev) => ({ ...prev, gallery_photos: [...prev.gallery_photos, ...urls] }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload gallery photos");
+    } finally {
+      setGalleryUploading(false);
+    }
+  }
+
+  function removeGalleryPhoto(url: string) {
+    setForm((prev) => ({ ...prev, gallery_photos: prev.gallery_photos.filter((p) => p !== url) }));
+  }
+
   async function save(status: AuctionStatus) {
     setError("");
+
+    if (!form.cover_photo_url) {
+      setError("Cover photo is required");
+      return;
+    }
+
     setLoading(true);
 
     const shippingType =
@@ -161,6 +230,7 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
         : 0,
       shipping_type: shippingType,
       cover_photo_url: form.cover_photo_url || null,
+      gallery_photos: form.gallery_photos.length ? form.gallery_photos : null,
       start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
       end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
       anti_snipe_enabled: form.anti_snipe_enabled,
@@ -332,12 +402,64 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           )}
         </div>
 
-        <Input
-          label="Cover Photo URL"
-          value={form.cover_photo_url}
-          onChange={(e) => setForm({ ...form, cover_photo_url: e.target.value })}
-          className="sm:col-span-2"
-        />
+        <div className="space-y-2 sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Cover Photo <span className="text-red-500">*</span>
+          </label>
+          <div className="flex items-center gap-4">
+            {form.cover_photo_url && (
+              <div className="relative h-24 w-24 overflow-hidden rounded-lg border border-gray-200">
+                <Image src={form.cover_photo_url} alt="Cover preview" fill className="object-cover" />
+              </div>
+            )}
+            <div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleCoverPhotoChange}
+                disabled={coverUploading}
+                className="text-sm text-gray-600"
+              />
+              {coverUploading && <p className="mt-1 text-sm text-gray-500">Uploading...</p>}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Gallery Photos <span className="text-gray-400">(optional, up to {MAX_GALLERY_PHOTOS})</span>
+          </label>
+          {form.gallery_photos.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {form.gallery_photos.map((url) => (
+                <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                  <Image src={url} alt="Gallery preview" fill className="object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeGalleryPhoto(url)}
+                    className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs text-white"
+                    aria-label="Remove photo"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {form.gallery_photos.length < MAX_GALLERY_PHOTOS && (
+            <div>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleGalleryPhotosChange}
+                disabled={galleryUploading}
+                className="text-sm text-gray-600"
+              />
+              {galleryUploading && <p className="mt-1 text-sm text-gray-500">Uploading...</p>}
+            </div>
+          )}
+        </div>
 
         <Input
           label="Start Time"
@@ -378,13 +500,27 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
       )}
 
       <div className="flex flex-wrap gap-3">
-        <Button variant="outline" onClick={() => save("draft")} loading={loading}>
+        <Button
+          variant="outline"
+          onClick={() => save("draft")}
+          loading={loading}
+          disabled={coverUploading || galleryUploading}
+        >
           Save Draft
         </Button>
-        <Button onClick={() => save("scheduled")} loading={loading}>
+        <Button
+          onClick={() => save("scheduled")}
+          loading={loading}
+          disabled={coverUploading || galleryUploading}
+        >
           Schedule Auction
         </Button>
-        <Button variant="secondary" onClick={() => save("active")} loading={loading}>
+        <Button
+          variant="secondary"
+          onClick={() => save("active")}
+          loading={loading}
+          disabled={coverUploading || galleryUploading}
+        >
           Publish Now
         </Button>
       </div>
