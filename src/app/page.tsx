@@ -34,7 +34,7 @@ export default async function HomePage() {
               </Link>
               {!user && (
                 <Link href="/register">
-                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                  <Button size="lg" variant="outline" className="border-white bg-transparent text-white hover:bg-white/10">
                     Create Account
                   </Button>
                 </Link>

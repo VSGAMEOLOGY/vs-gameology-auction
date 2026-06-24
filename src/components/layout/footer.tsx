@@ -26,7 +26,7 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-gray-900">Support</h4>
             <ul className="mt-3 space-y-2 text-sm text-gray-600">
-              <li><a href="https://wa.me/60139681228" target="_blank" rel="noopener noreferrer" className="hover:text-brand-600">Contact Us</a></li>
+              <li><a href="https://wa.me/60139681228?text=Hi%20VS%20GAMEOLOGY%2C%20I%20need%20help%20regarding%20my%20auction%20account." target="_blank" rel="noopener noreferrer" className="hover:text-brand-600">Contact Us</a></li>
               <li><Link href="/terms" className="hover:text-brand-600">Terms of Service</Link></li>
               <li><Link href="/privacy" className="hover:text-brand-600">Privacy Policy</Link></li>
             </ul>
