@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -13,6 +14,9 @@ import { formatCurrency } from "@/lib/utils";
 import type { Payment, ShippingAddress } from "@/types/database";
 
 const EAST_MALAYSIA_STATES = ["Sabah", "Sarawak", "Labuan"];
+const WHATSAPP_NUMBER = "60139681228";
+const EAST_UNAVAILABLE_MESSAGE =
+  "This item does not ship to East Malaysia. Please choose Self Collection or contact us at https://wa.me/60139681228";
 
 const MALAYSIA_STATES = [
   "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Perak", "Perlis",
@@ -45,11 +49,34 @@ export default function PaymentDetailPage() {
   const [addressId, setAddressId] = useState("");
   const [newAddress, setNewAddress] = useState(emptyAddress);
   const [proofUrl, setProofUrl] = useState("");
+  const [receiptUploading, setReceiptUploading] = useState(false);
   const [fulfillmentChoice, setFulfillmentChoice] = useState<"shipping" | "collection">("shipping");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
+
+  async function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+    setReceiptUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("payment-receipts")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("payment-receipts").getPublicUrl(path);
+      setProofUrl(data.publicUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload payment screenshot");
+    } finally {
+      setReceiptUploading(false);
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -106,6 +133,11 @@ export default function PaymentDetailPage() {
     setError("");
     setMessage("");
 
+    if (!proofUrl) {
+      setError("Please upload your payment screenshot");
+      return;
+    }
+
     let finalState: string | undefined;
 
     if (!isCollection) {
@@ -131,7 +163,7 @@ export default function PaymentDetailPage() {
       }
 
       if (finalState && resolveZone(finalState) === "east" && auction?.ships_to_east === false) {
-        setError("This item does not ship to East Malaysia");
+        setError(EAST_UNAVAILABLE_MESSAGE);
         return;
       }
     }
@@ -195,6 +227,27 @@ export default function PaymentDetailPage() {
   const displayedTotal = isPending
     ? payment.winning_bid + (isCollection ? 0 : resolvedShippingFee)
     : payment.total_amount;
+
+  const readyForPayment = isPending && !eastUnavailable && (isCollection || zone !== null);
+  const zoneLabel = isCollection ? "Self Collection" : zone === "east" ? "East Malaysia" : "West Malaysia";
+
+  const whatsappMessage = [
+    "Congratulations! You won the auction! \u{1F389}",
+    "",
+    `Auction No: ${auction?.auction_number ?? ""}`,
+    `Item: ${payment.auction?.title ?? ""}`,
+    `Winning Bid: RM ${payment.winning_bid.toFixed(2)}`,
+    `Shipping Fee: RM ${displayedShippingFee.toFixed(2)} (${zoneLabel})`,
+    `Total Amount: RM ${displayedTotal.toFixed(2)}`,
+    "",
+    "Payment Details:",
+    "Bank: Maybank",
+    "Account No: 5123 4373 9288",
+    "Account Name: VS GAMEOLOGY",
+    "",
+    "Please **SHARE YOUR PAYMENT SCREENSHOT HERE** and also **UPLOAD IT ON THE WEBSITE** to complete your payment. Thank you!",
+  ].join("\n");
+  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -368,22 +421,59 @@ export default function PaymentDetailPage() {
                   )}
 
                   {eastUnavailable && (
-                    <Alert variant="error">This item does not ship to East Malaysia</Alert>
+                    <Alert variant="error">{EAST_UNAVAILABLE_MESSAGE}</Alert>
                   )}
                 </div>
               )}
 
-              <Input
-                label="Payment Proof URL"
-                placeholder="Link to bank transfer receipt or screenshot"
-                value={proofUrl}
-                onChange={(e) => setProofUrl(e.target.value)}
-                required
-              />
+              {readyForPayment && (
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-700">Payment Details</p>
+                  <div className="text-sm text-gray-600">
+                    <p>Bank: Maybank</p>
+                    <p>Account No: 5123 4373 9288</p>
+                    <p>Account Name: VS GAMEOLOGY</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
+                  >
+                    Pay via WhatsApp
+                  </Button>
+                </div>
+              )}
 
-              <Button type="submit" loading={loading} disabled={eastUnavailable} className="w-full">
-                Submit Payment Proof
-              </Button>
+              <div className="space-y-3 border-t pt-4">
+                <p className="text-sm font-medium text-gray-700">Upload Payment Screenshot</p>
+                <div className="flex items-center gap-4">
+                  {proofUrl && (
+                    <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                      <Image src={proofUrl} alt="Payment screenshot preview" fill className="object-cover" />
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReceiptChange}
+                      disabled={receiptUploading}
+                      className="text-sm text-gray-600"
+                    />
+                    {receiptUploading && <p className="mt-1 text-sm text-gray-500">Uploading...</p>}
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  loading={loading}
+                  disabled={eastUnavailable || receiptUploading || !proofUrl}
+                  className="w-full"
+                >
+                  Submit Payment Proof
+                </Button>
+              </div>
             </form>
           )}
         </CardContent>

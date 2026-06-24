@@ -37,7 +37,11 @@ export default async function SuspendedPage() {
             </p>
           )}
           <p className="mt-4 text-sm text-gray-500">
-            Contact <a href="mailto:support@vsgameology.com" className="text-brand-600">support@vsgameology.com</a> for assistance.
+            Contact us on{" "}
+            <a href="https://wa.me/60139681228" target="_blank" rel="noopener noreferrer" className="text-brand-600">
+              WhatsApp
+            </a>{" "}
+            for assistance.
           </p>
         </CardContent>
       </Card>
