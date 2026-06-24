@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export default async function HomePage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: auctions } = await supabase
     .from("auctions")
     .select("*")
@@ -31,11 +32,13 @@ export default async function HomePage() {
                   Browse Auctions
                 </Button>
               </Link>
-              <Link href="/auctions?status=scheduled">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                  View Schedule
-                </Button>
-              </Link>
+              {!user && (
+                <Link href="/register">
+                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                    Create Account
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -44,10 +47,10 @@ export default async function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { icon: Gavel, title: "Live Bidding", desc: "Real-time auction experience" },
-            { icon: Shield, title: "Secure Payments", desc: "Verified payment processing" },
-            { icon: Zap, title: "Instant Updates", desc: "Get notified when outbid" },
-            { icon: Clock, title: "Scheduled Auctions", desc: "Never miss a sale" },
+            { icon: Gavel, title: "Live Bidding", desc: "Bid in real-time with instant updates" },
+            { icon: Shield, title: "Secure Payments", desc: "Bank transfer with admin verification" },
+            { icon: Zap, title: "Instant Updates", desc: "Get notified when you're outbid" },
+            { icon: Clock, title: "Scheduled Auctions", desc: "Browse upcoming auctions before they go live" },
           ].map((feature) => (
             <div key={feature.title} className="text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600">
