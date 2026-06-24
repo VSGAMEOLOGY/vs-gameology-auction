@@ -31,9 +31,9 @@ export default async function HomePage() {
                   Browse Auctions
                 </Button>
               </Link>
-              <Link href="/register">
+              <Link href="/auctions?status=scheduled">
                 <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                  Create Account
+                  View Schedule
                 </Button>
               </Link>
             </div>
