@@ -18,6 +18,22 @@ export function AuctionListClient({ initialAuctions }: AuctionListClientProps) {
   }, [initialAuctions]);
 
   useEffect(() => {
+    const ids = initialAuctions.map((a) => a.id);
+    if (ids.length === 0) return;
+
+    supabase
+      .from("auctions")
+      .select("*")
+      .in("id", ids)
+      .then(({ data }) => {
+        if (!data) return;
+        setAuctions((prev) =>
+          prev.map((auction) => data.find((fresh) => fresh.id === auction.id) ?? auction)
+        );
+      });
+  }, [initialAuctions, supabase]);
+
+  useEffect(() => {
     const channel = supabase
       .channel("auctions-list")
       .on(

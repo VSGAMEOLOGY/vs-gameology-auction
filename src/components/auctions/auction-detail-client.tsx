@@ -144,10 +144,15 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
           </div>
 
           {/* Status badge */}
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <Badge variant={statusVariant[auction.status]}>
               {auction.status.charAt(0).toUpperCase() + auction.status.slice(1)}
             </Badge>
+            {auction.status === "scheduled" && auction.start_at && (
+              <span className="text-sm text-gray-600">
+                Starts at {formatDate(auction.start_at)}
+              </span>
+            )}
           </div>
         </div>
 
