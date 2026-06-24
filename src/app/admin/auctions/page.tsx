@@ -1,18 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { AdminAuctionList } from "@/components/admin/admin-auction-list";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { Plus, Copy, Calendar } from "lucide-react";
-
-const statusVariant: Record<string, "default" | "success" | "warning" | "danger" | "info" | "brand"> = {
-  draft: "default",
-  scheduled: "info",
-  active: "success",
-  ended: "danger",
-  cancelled: "warning",
-};
+import { Plus, Calendar } from "lucide-react";
 
 export default async function AdminAuctionsPage() {
   const supabase = await createClient();
@@ -47,37 +37,7 @@ export default async function AdminAuctionsPage() {
         </div>
       </div>
 
-      <div className="mt-6 space-y-3">
-        {auctions?.map((auction) => (
-          <Card key={auction.id}>
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate font-medium text-gray-900">{auction.title}</p>
-                  <Badge variant={statusVariant[auction.status]}>{auction.status}</Badge>
-                </div>
-                <p className="mt-1 text-sm text-gray-500">
-                  {formatCurrency(auction.current_bid || auction.starting_price)}
-                  {auction.end_at && ` · Ends ${formatDate(auction.end_at)}`}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Link href={`/admin/auctions/${auction.id}/edit`}>
-                  <Button variant="outline" size="sm">Edit</Button>
-                </Link>
-                <Link href={`/admin/auctions/${auction.id}/clone`}>
-                  <Button variant="ghost" size="sm">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href={`/auctions/${auction.id}`}>
-                  <Button variant="ghost" size="sm">View</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <AdminAuctionList initialAuctions={auctions ?? []} />
     </div>
   );
 }
