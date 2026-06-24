@@ -56,11 +56,29 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
   return (
     <div className="grid gap-8 lg:grid-cols-2">
       {/* Image */}
-      <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
-        {auction.cover_photo_url ? (
-          <Image src={auction.cover_photo_url} alt={auction.title} fill className="object-cover" priority />
-        ) : (
-          <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
+      <div>
+        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
+          {auction.cover_photo_url ? (
+            <Image src={auction.cover_photo_url} alt={auction.title} fill className="object-cover" priority />
+          ) : (
+            <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
+          )}
+        </div>
+
+        {auction.gallery_photos && auction.gallery_photos.length > 0 && (
+          <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {auction.gallery_photos.map((url, i) => (
+              <div key={`${url}-${i}`} className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
+                <Image
+                  src={url}
+                  alt={`${auction.title} photo ${i + 2}`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 25vw, 12vw"
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

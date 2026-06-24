@@ -431,8 +431,8 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           </label>
           {form.gallery_photos.length > 0 && (
             <div className="flex flex-wrap gap-3">
-              {form.gallery_photos.map((url) => (
-                <div key={url} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+              {form.gallery_photos.map((url, i) => (
+                <div key={`${url}-${i}`} className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
                   <Image src={url} alt="Gallery preview" fill className="object-cover" />
                   <button
                     type="button"
