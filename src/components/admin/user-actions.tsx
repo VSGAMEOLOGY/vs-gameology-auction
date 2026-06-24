@@ -14,6 +14,7 @@ export function UserActions({ user }: UserActionsProps) {
   const [showSuspend, setShowSuspend] = useState(false);
   const [reason, setReason] = useState("");
   const [until, setUntil] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
@@ -25,7 +26,15 @@ export function UserActions({ user }: UserActionsProps) {
   }
 
   async function suspend(type: "temporary" | "permanent") {
-    if (!reason) return;
+    if (!reason.trim()) {
+      setError("A reason is required to suspend a user");
+      return;
+    }
+    if (type === "temporary" && !until) {
+      setError("Pick a suspension end date for a temporary suspension");
+      return;
+    }
+    setError("");
     setLoading(true);
 
     const { data: { user: admin } } = await supabase.auth.getUser();
@@ -43,9 +52,6 @@ export function UserActions({ user }: UserActionsProps) {
       reason,
       suspended_until: type === "temporary" && until ? new Date(until).toISOString() : null,
     });
-
-    if (type === "permanent") {
-    }
 
     await supabase.from("notifications").insert({
       user_id: user.id,
@@ -73,7 +79,7 @@ export function UserActions({ user }: UserActionsProps) {
         {user.role === "admin" ? "Remove Admin" : "Make Admin"}
       </Button>
 
-      {false ? (
+      {user.is_suspended ? (
         <Button variant="secondary" size="sm" onClick={unsuspend} loading={loading}>
           Unsuspend
         </Button>
@@ -83,8 +89,9 @@ export function UserActions({ user }: UserActionsProps) {
         </Button>
       )}
 
-      {showSuspend && (
+      {showSuspend && !user.is_suspended && (
         <div className="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+          {error && <p className="text-sm text-red-600">{error}</p>}
           <Input
             label="Reason"
             value={reason}
@@ -92,7 +99,7 @@ export function UserActions({ user }: UserActionsProps) {
             placeholder="Reason for suspension"
           />
           <Input
-            label="Suspend Until (optional, for temporary)"
+            label="Suspend Until (required for temporary suspension)"
             type="datetime-local"
             value={until}
             onChange={(e) => setUntil(e.target.value)}

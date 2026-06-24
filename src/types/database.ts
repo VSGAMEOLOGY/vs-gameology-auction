@@ -32,6 +32,9 @@ export interface Profile {
   unpaid_wins: number;
   total_bids: number;
   admin_notes: string | null;
+  is_suspended: boolean;
+  suspension_reason: string | null;
+  suspended_until: string | null;
   created_at: string;
   updated_at: string;
 }
