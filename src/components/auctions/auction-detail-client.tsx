@@ -22,6 +22,7 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
   const [auction, setAuction] = useState(initialAuction);
   const [bidRefreshKey, setBidRefreshKey] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [, setNow] = useState(() => Date.now());
   const supabase = createClient();
 
   const photos = [auction.cover_photo_url, ...(auction.gallery_photos ?? [])].filter(
@@ -48,6 +49,12 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [lightboxIndex, photos.length]);
+
+  useEffect(() => {
+    if (auction.status !== "active" || !auction.end_at) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [auction.status, auction.end_at]);
 
   useEffect(() => {
     const channel = supabase
