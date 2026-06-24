@@ -60,6 +60,7 @@ export function AdminAuctionList({ initialAuctions }: AdminAuctionListProps) {
               </div>
               <p className="mt-1 text-sm text-gray-500">
                 {formatCurrency(auction.current_bid || auction.starting_price)}
+                {auction.status === "scheduled" && auction.start_at && ` · Starts ${formatDate(auction.start_at)}`}
                 {auction.end_at && ` · Ends ${formatDate(auction.end_at)}`}
               </p>
             </div>

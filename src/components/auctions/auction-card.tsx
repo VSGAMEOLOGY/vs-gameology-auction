@@ -90,6 +90,9 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 Collection
               </span>
             )}
+            {auction.status === "scheduled" && auction.start_at && (
+              <span>Starts {formatDate(auction.start_at)}</span>
+            )}
             {auction.end_at && (
               <span>Ends {formatDate(auction.end_at)}</span>
             )}

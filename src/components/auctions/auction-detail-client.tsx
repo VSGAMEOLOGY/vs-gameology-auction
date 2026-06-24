@@ -12,6 +12,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatDate, getTimeRemaining } from "@/lib/utils";
 import type { Auction } from "@/types/database";
 
+const statusVariant: Record<string, "default" | "success" | "warning" | "danger" | "info" | "brand"> = {
+  draft: "default",
+  scheduled: "info",
+  active: "success",
+  ended: "danger",
+  cancelled: "warning",
+};
+
 interface AuctionDetailClientProps {
   initialAuction: Auction;
   categoryName?: string | null;
@@ -137,7 +145,7 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
 
           {/* Status badge */}
           <div className="mt-2">
-            <Badge variant={isActive ? "success" : "default"}>
+            <Badge variant={statusVariant[auction.status]}>
               {auction.status.charAt(0).toUpperCase() + auction.status.slice(1)}
             </Badge>
           </div>
