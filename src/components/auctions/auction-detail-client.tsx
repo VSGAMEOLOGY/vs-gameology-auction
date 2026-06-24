@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Truck, MapPin, Package } from "lucide-react";
+import { Truck, MapPin, Package, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BidForm } from "@/components/auctions/bid-form";
 import { BidHistory } from "@/components/auctions/bid-history";
@@ -21,7 +21,33 @@ interface AuctionDetailClientProps {
 export function AuctionDetailClient({ initialAuction, categoryName, userId }: AuctionDetailClientProps) {
   const [auction, setAuction] = useState(initialAuction);
   const [bidRefreshKey, setBidRefreshKey] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const supabase = createClient();
+
+  const photos = [auction.cover_photo_url, ...(auction.gallery_photos ?? [])].filter(
+    (url): url is string => Boolean(url)
+  );
+
+  function showPrev() {
+    setLightboxIndex((i) => (i === null ? null : (i - 1 + photos.length) % photos.length));
+  }
+
+  function showNext() {
+    setLightboxIndex((i) => (i === null ? null : (i + 1) % photos.length));
+  }
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setLightboxIndex(null);
+      if (e.key === "ArrowLeft") setLightboxIndex((i) => (i === null ? null : (i - 1 + photos.length) % photos.length));
+      if (e.key === "ArrowRight") setLightboxIndex((i) => (i === null ? null : (i + 1) % photos.length));
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxIndex, photos.length]);
 
   useEffect(() => {
     const channel = supabase
@@ -57,18 +83,29 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
     <div className="grid gap-8 lg:grid-cols-2">
       {/* Image */}
       <div>
-        <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
-          {auction.cover_photo_url ? (
+        {auction.cover_photo_url ? (
+          <button
+            type="button"
+            onClick={() => setLightboxIndex(0)}
+            className="relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-xl bg-gray-100"
+          >
             <Image src={auction.cover_photo_url} alt={auction.title} fill className="object-cover" priority />
-          ) : (
-            <div className="flex h-full items-center justify-center text-gray-400">No Image</div>
-          )}
-        </div>
+          </button>
+        ) : (
+          <div className="relative flex aspect-square items-center justify-center rounded-xl bg-gray-100 text-gray-400">
+            No Image
+          </div>
+        )}
 
         {auction.gallery_photos && auction.gallery_photos.length > 0 && (
           <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
             {auction.gallery_photos.map((url, i) => (
-              <div key={`${url}-${i}`} className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
+              <button
+                key={`${url}-${i}`}
+                type="button"
+                onClick={() => setLightboxIndex(i + 1)}
+                className="relative block aspect-square cursor-zoom-in overflow-hidden rounded-lg bg-gray-100"
+              >
                 <Image
                   src={url}
                   alt={`${auction.title} photo ${i + 2}`}
@@ -76,7 +113,7 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
                   className="object-cover"
                   sizes="(max-width: 768px) 25vw, 12vw"
                 />
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -216,6 +253,63 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
           </CardContent>
         </Card>
       </div>
+
+      {lightboxIndex !== null && photos[lightboxIndex] && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setLightboxIndex(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxIndex(null)}
+            className="absolute right-4 top-4 text-white/80 hover:text-white"
+            aria-label="Close"
+          >
+            <X className="h-8 w-8" />
+          </button>
+
+          {photos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); showPrev(); }}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white"
+              aria-label="Previous photo"
+            >
+              <ChevronLeft className="h-10 w-10" />
+            </button>
+          )}
+
+          <div
+            className="relative h-full max-h-[85vh] w-full max-w-4xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={photos[lightboxIndex]}
+              alt={`${auction.title} full view`}
+              fill
+              className="object-contain"
+              sizes="100vw"
+            />
+          </div>
+
+          {photos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); showNext(); }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/80 hover:text-white"
+              aria-label="Next photo"
+            >
+              <ChevronRight className="h-10 w-10" />
+            </button>
+          )}
+
+          {photos.length > 1 && (
+            <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-white/70">
+              {lightboxIndex + 1} / {photos.length}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
