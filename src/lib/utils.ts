@@ -16,6 +16,7 @@ export function formatDate(date: string | Date) {
   return new Intl.DateTimeFormat("en-MY", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Asia/Kuala_Lumpur",
   }).format(new Date(date));
 }
 
@@ -32,4 +33,16 @@ export function getTimeRemaining(endTime: string): string {
   if (hours > 0) return `${hours}h ${minutes}m`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
+}
+
+export function formatCountdown(endTime: string, now: number = Date.now()): string {
+  const diff = new Date(endTime).getTime() - now;
+  if (diff <= 0) return "Ended";
+
+  const totalSeconds = Math.floor(diff / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${hours}h ${minutes}m ${seconds}s`;
 }

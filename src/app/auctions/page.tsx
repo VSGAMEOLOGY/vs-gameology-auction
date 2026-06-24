@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { AuctionCard } from "@/components/auctions/auction-card";
+import { AuctionListClient } from "@/components/auctions/auction-list-client";
 import type { AuctionStatus } from "@/types/database";
 
 interface SearchParams {
@@ -71,18 +71,7 @@ export default async function AuctionsPage({
         ))}
       </div>
 
-      {auctions && auctions.length > 0 ? (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {auctions.map((auction) => (
-            <AuctionCard key={auction.id} auction={auction} />
-          ))}
-        </div>
-      ) : (
-        <div className="mt-12 text-center text-gray-500">
-          <p className="text-lg">No auctions found</p>
-          <p className="mt-1 text-sm">Check back soon for new listings</p>
-        </div>
-      )}
+      <AuctionListClient initialAuctions={auctions ?? []} />
     </div>
   );
 }

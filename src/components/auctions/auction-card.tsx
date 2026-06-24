@@ -1,9 +1,12 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Clock, Truck, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency, formatDate, getTimeRemaining } from "@/lib/utils";
+import { formatCurrency, formatDate, formatCountdown } from "@/lib/utils";
 import type { Auction } from "@/types/database";
 
 const statusVariant: Record<string, "default" | "success" | "warning" | "danger" | "info" | "brand"> = {
@@ -19,6 +22,14 @@ interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction }: AuctionCardProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (auction.status !== "active" || !auction.end_at) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [auction.status, auction.end_at]);
+
   return (
     <Link href={`/auctions/${auction.id}`}>
       <Card className="group overflow-hidden transition-shadow hover:shadow-md">
@@ -57,7 +68,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               <div className="text-right">
                 <p className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock className="h-3 w-3" />
-                  {getTimeRemaining(auction.end_at)}
+                  Ends in {formatCountdown(auction.end_at, now)}
                 </p>
               </div>
             )}
