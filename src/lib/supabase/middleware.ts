@@ -78,21 +78,9 @@ export async function updateSession(request: NextRequest) {
       .single();
 
     if (profile?.status === "suspended") {
-      const { data: suspension } = await supabase
-        .from("user_suspensions")
-        .select("suspension_type, suspended_until")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: lifted } = await supabase.rpc("lift_expired_suspension");
 
-      const expired =
-        suspension?.suspension_type === "temporary" &&
-        !!suspension.suspended_until &&
-        new Date(suspension.suspended_until) <= new Date();
-
-      if (!expired && !request.nextUrl.pathname.startsWith("/suspended")) {
+      if (!lifted && !request.nextUrl.pathname.startsWith("/suspended")) {
         const url = request.nextUrl.clone();
         url.pathname = "/suspended";
         return NextResponse.redirect(url);

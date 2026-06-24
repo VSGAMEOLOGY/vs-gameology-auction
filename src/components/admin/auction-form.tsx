@@ -99,6 +99,8 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     starting_price: auction?.starting_price?.toString() ?? "0",
     minimum_increment: auction?.minimum_increment?.toString() ?? "5",
     shipping_options: initShippingOptions(auction),
+    ships_to_west: auction?.ships_to_west ?? true,
+    ships_to_east: auction?.ships_to_east ?? true,
     shipping_fee_west: auction?.shipping_fee_west?.toString() ?? "0",
     shipping_fee_east: auction?.shipping_fee_east?.toString() ?? "0",
     cover_photo_url: auction?.cover_photo_url ?? "",
@@ -228,6 +230,8 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
       shipping_fee_east: form.shipping_options.includes("shipping")
         ? parseFloat(form.shipping_fee_east)
         : 0,
+      ships_to_west: form.shipping_options.includes("shipping") && form.ships_to_west,
+      ships_to_east: form.shipping_options.includes("shipping") && form.ships_to_east,
       shipping_type: shippingType,
       cover_photo_url: form.cover_photo_url || null,
       gallery_photos: form.gallery_photos.length ? form.gallery_photos : null,
@@ -383,21 +387,48 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           </div>
 
           {shippingChecked && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input
-                label="Shipping Fee — West Malaysia (RM)"
-                type="number"
-                step="1"
-                value={form.shipping_fee_west}
-                onChange={(e) => setForm({ ...form, shipping_fee_west: e.target.value })}
-              />
-              <Input
-                label="Shipping Fee — East Malaysia (RM)"
-                type="number"
-                step="1"
-                value={form.shipping_fee_east}
-                onChange={(e) => setForm({ ...form, shipping_fee_east: e.target.value })}
-              />
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-6">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.ships_to_west}
+                    onChange={(e) => setForm({ ...form, ships_to_west: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  Ship to West Malaysia
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.ships_to_east}
+                    onChange={(e) => setForm({ ...form, ships_to_east: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  Ship to East Malaysia
+                </label>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {form.ships_to_west && (
+                  <Input
+                    label="Shipping Fee — West Malaysia (RM)"
+                    type="number"
+                    step="1"
+                    value={form.shipping_fee_west}
+                    onChange={(e) => setForm({ ...form, shipping_fee_west: e.target.value })}
+                  />
+                )}
+                {form.ships_to_east && (
+                  <Input
+                    label="Shipping Fee — East Malaysia (RM)"
+                    type="number"
+                    step="1"
+                    value={form.shipping_fee_east}
+                    onChange={(e) => setForm({ ...form, shipping_fee_east: e.target.value })}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -193,9 +193,17 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
                 <div>
                   <p className="font-medium text-gray-800">Shipping Fee</p>
                   <p className="text-gray-600">
-                    RM {(auction.shipping_fee_west ?? 0).toFixed(0)} (West Malaysia)
+                    {auction.ships_to_west ? (
+                      <>RM {(auction.shipping_fee_west ?? 0).toFixed(0)} (West Malaysia)</>
+                    ) : (
+                      <span className="text-red-600">West Malaysia shipping not available</span>
+                    )}
                     {" / "}
-                    RM {(auction.shipping_fee_east ?? 0).toFixed(0)} (East Malaysia)
+                    {auction.ships_to_east ? (
+                      <>RM {(auction.shipping_fee_east ?? 0).toFixed(0)} (East Malaysia)</>
+                    ) : (
+                      <span className="text-red-600">East Malaysia shipping not available</span>
+                    )}
                   </p>
                 </div>
               </div>

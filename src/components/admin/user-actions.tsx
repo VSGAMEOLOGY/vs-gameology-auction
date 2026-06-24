@@ -22,7 +22,7 @@ export function UserActions({ user }: UserActionsProps) {
     setLoading(true);
     const newRole = user.role === "admin" ? "user" : "admin";
     await supabase.from("profiles").update({ role: newRole }).eq("id", user.id);
-    window.location.reload();
+    setLoading(false);
   }
 
   async function suspend(type: "temporary" | "permanent") {
@@ -58,7 +58,10 @@ export function UserActions({ user }: UserActionsProps) {
       message: reason,
     });
 
-    window.location.reload();
+    setReason("");
+    setUntil("");
+    setShowSuspend(false);
+    setLoading(false);
   }
 
   async function unsuspend() {
@@ -69,7 +72,7 @@ export function UserActions({ user }: UserActionsProps) {
       .update({ is_active: false })
       .eq("user_id", user.id)
       .eq("is_active", true);
-    window.location.reload();
+    setLoading(false);
   }
 
   return (

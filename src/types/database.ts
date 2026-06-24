@@ -96,6 +96,8 @@ export interface Auction {
   shipping_type: string | null;
   shipping_fee_west: number | null;
   shipping_fee_east: number | null;
+  ships_to_west: boolean;
+  ships_to_east: boolean;
 
   created_by: string | null;
 
@@ -238,6 +240,7 @@ export type Database = {
       end_auction: { Args: { p_auction_id: number }; Returns: undefined };
       is_admin: { Args: Record<string, never>; Returns: boolean };
       is_suspended: { Args: Record<string, never>; Returns: boolean };
+      lift_expired_suspension: { Args: Record<string, never>; Returns: boolean };
     };
   };
 };
