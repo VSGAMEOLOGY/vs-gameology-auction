@@ -73,19 +73,30 @@ export async function updateSession(request: NextRequest) {
   if (user && !isAuthPage) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("is_suspended, suspended_until")
+      .select("status")
       .eq("id", user.id)
       .single();
 
-    const isSuspended =
-      profile?.is_suspended ||
-      (profile?.suspended_until &&
-        new Date(profile.suspended_until) > new Date());
+    if (profile?.status === "suspended") {
+      const { data: suspension } = await supabase
+        .from("user_suspensions")
+        .select("suspension_type, suspended_until")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (isSuspended && !request.nextUrl.pathname.startsWith("/suspended")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/suspended";
-      return NextResponse.redirect(url);
+      const expired =
+        suspension?.suspension_type === "temporary" &&
+        !!suspension.suspended_until &&
+        new Date(suspension.suspended_until) <= new Date();
+
+      if (!expired && !request.nextUrl.pathname.startsWith("/suspended")) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/suspended";
+        return NextResponse.redirect(url);
+      }
     }
   }
 

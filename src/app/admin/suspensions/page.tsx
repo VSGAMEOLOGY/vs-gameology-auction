@@ -6,19 +6,27 @@ import { formatDate } from "@/lib/utils";
 export default async function AdminSuspensionsPage() {
   const supabase = await createClient();
 
-  const [{ data: suspended }, { data: blacklist }, { data: history }] = await Promise.all([
+  const [{ data: active }, { data: blacklist }, { data: history }] = await Promise.all([
     supabase
-      .from("profiles")
+      .from("user_suspensions")
       .select("*")
-      .or("is_suspended.eq.true,suspended_until.gt.now()")
-      .order("updated_at", { ascending: false }),
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
     supabase.from("blacklist").select("*").order("created_at", { ascending: false }),
     supabase
-      .from("suspension_history")
-      .select("*, user:profiles!suspension_history_user_id_fkey(full_name, email), admin:profiles!suspension_history_suspended_by_fkey(full_name)")
+      .from("user_suspensions")
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
+
+  const userIds = [...new Set([...(active ?? []), ...(history ?? [])].map((s) => s.user_id))];
+  const { data: profiles } = userIds.length
+    ? await supabase.from("profiles").select("id, real_name, username").in("id", userIds)
+    : { data: [] as { id: string; real_name: string; username: string }[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const suspended = (active ?? []).map((s) => ({ ...s, profile: profileById.get(s.user_id) }));
 
   return (
     <div className="space-y-8">
@@ -32,18 +40,17 @@ export default async function AdminSuspensionsPage() {
           <CardTitle>Currently Suspended ({suspended?.length ?? 0})</CardTitle>
         </CardHeader>
         <CardContent>
-          {suspended && suspended.length > 0 ? (
+          {suspended.length > 0 ? (
             <div className="divide-y divide-gray-100">
-              {suspended.map((user) => (
-                <div key={user.id} className="flex items-center justify-between py-3">
+              {suspended.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-3">
                   <div>
-                    <p className="font-medium">{user.full_name || user.email}</p>
-                    <p className="text-sm text-gray-500">{user.suspension_reason}</p>
+                    <p className="font-medium">{s.profile?.real_name || s.profile?.username || "Unknown user"}</p>
+                    <p className="text-sm text-gray-500">{s.reason}</p>
                   </div>
-                  {user.suspended_until && (
-                    <Badge variant="warning">Until {formatDate(user.suspended_until)}</Badge>
-                  )}
-                  {!user.suspended_until && user.is_suspended && (
+                  {s.suspension_type === "temporary" && s.suspended_until ? (
+                    <Badge variant="warning">Until {formatDate(s.suspended_until)}</Badge>
+                  ) : (
                     <Badge variant="danger">Permanent</Badge>
                   )}
                 </div>
@@ -83,23 +90,24 @@ export default async function AdminSuspensionsPage() {
         <CardContent>
           {history && history.length > 0 ? (
             <div className="divide-y divide-gray-100">
-              {history.map((record) => (
-                <div key={record.id} className="flex items-center justify-between py-3 text-sm">
-                  <div>
-                    <p className="font-medium">
-                      {(record as { user?: { full_name?: string; email?: string } }).user?.full_name ||
-                        (record as { user?: { email?: string } }).user?.email}
-                    </p>
-                    <p className="text-gray-500">{record.reason}</p>
+              {history.map((record) => {
+                const profile = profileById.get(record.user_id);
+                return (
+                  <div key={record.id} className="flex items-center justify-between py-3 text-sm">
+                    <div>
+                      <p className="font-medium">{profile?.real_name || profile?.username || "Unknown user"}</p>
+                      <p className="text-gray-500">{record.reason}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={record.suspension_type === "permanent" ? "danger" : "warning"}>
+                        {record.suspension_type}
+                        {!record.is_active && " (lifted)"}
+                      </Badge>
+                      <p className="mt-1 text-xs text-gray-400">{formatDate(record.created_at)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant={record.type === "permanent" ? "danger" : "warning"}>
-                      {record.type}
-                    </Badge>
-                    <p className="mt-1 text-xs text-gray-400">{formatDate(record.created_at)}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-gray-500">No suspension history</p>

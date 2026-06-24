@@ -38,19 +38,17 @@ export function UserActions({ user }: UserActionsProps) {
     setLoading(true);
 
     const { data: { user: admin } } = await supabase.auth.getUser();
+    const suspendedUntil = type === "temporary" && until ? new Date(until).toISOString() : null;
 
-    await supabase.from("profiles").update({
-      is_suspended: true,
-      suspension_reason: reason,
-      suspended_until: type === "temporary" && until ? new Date(until).toISOString() : null,
-    }).eq("id", user.id);
+    await supabase.from("profiles").update({ status: "suspended" }).eq("id", user.id);
 
-    await supabase.from("suspension_history").insert({
+    await supabase.from("user_suspensions").insert({
       user_id: user.id,
       suspended_by: admin!.id,
-      type,
+      suspension_type: type,
       reason,
-      suspended_until: type === "temporary" && until ? new Date(until).toISOString() : null,
+      suspended_until: suspendedUntil,
+      is_active: true,
     });
 
     await supabase.from("notifications").insert({
@@ -65,11 +63,12 @@ export function UserActions({ user }: UserActionsProps) {
 
   async function unsuspend() {
     setLoading(true);
-    await supabase.from("profiles").update({
-      is_suspended: false,
-      suspension_reason: null,
-      suspended_until: null,
-    }).eq("id", user.id);
+    await supabase.from("profiles").update({ status: "active" }).eq("id", user.id);
+    await supabase
+      .from("user_suspensions")
+      .update({ is_active: false })
+      .eq("user_id", user.id)
+      .eq("is_active", true);
     window.location.reload();
   }
 
@@ -79,7 +78,7 @@ export function UserActions({ user }: UserActionsProps) {
         {user.role === "admin" ? "Remove Admin" : "Make Admin"}
       </Button>
 
-      {user.is_suspended ? (
+      {user.status === "suspended" ? (
         <Button variant="secondary" size="sm" onClick={unsuspend} loading={loading}>
           Unsuspend
         </Button>
@@ -89,7 +88,7 @@ export function UserActions({ user }: UserActionsProps) {
         </Button>
       )}
 
-      {showSuspend && !user.is_suspended && (
+      {showSuspend && user.status !== "suspended" && (
         <div className="w-full space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Input

@@ -11,14 +11,17 @@ export default async function SuspendedPage() {
   let until: string | null = null;
 
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("suspension_reason, suspended_until, is_suspended")
-      .eq("id", user.id)
-      .single();
+    const { data: suspension } = await supabase
+      .from("user_suspensions")
+      .select("reason, suspended_until")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (profile?.suspension_reason) reason = profile.suspension_reason;
-    if (profile?.suspended_until) until = profile.suspended_until;
+    if (suspension?.reason) reason = suspension.reason;
+    if (suspension?.suspended_until) until = suspension.suspended_until;
   }
 
   return (

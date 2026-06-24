@@ -32,9 +32,6 @@ export interface Profile {
   unpaid_wins: number;
   total_bids: number;
   admin_notes: string | null;
-  is_suspended: boolean;
-  suspension_reason: string | null;
-  suspended_until: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -186,13 +183,16 @@ export interface AdminActivityLog {
 }
 
 export interface SuspensionRecord {
-  id: string;
+  id: number;
   user_id: string;
   suspended_by: string;
-  type: SuspensionType;
+  suspension_type: SuspensionType;
   reason: string;
+  offence_count: number;
+  related_auction_id: number | null;
   suspended_until: string | null;
-  lifted_at: string | null;
+  is_active: boolean;
+  admin_notes: string | null;
   created_at: string;
 }
 
@@ -229,7 +229,7 @@ export type Database = {
       notifications: TableRow<Notification>;
       blacklist: TableRow<BlacklistEntry>;
       admin_activity_logs: TableRow<AdminActivityLog>;
-      suspension_history: TableRow<SuspensionRecord>;
+      user_suspensions: TableRow<SuspensionRecord>;
     };
     Views: Record<string, never>;
     Functions: {
