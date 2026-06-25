@@ -8,9 +8,10 @@ import type { Profile } from "@/types/database";
 
 interface UserActionsProps {
   user: Profile;
+  onStatusChange?: (status: string) => void;
 }
 
-export function UserActions({ user }: UserActionsProps) {
+export function UserActions({ user, onStatusChange }: UserActionsProps) {
   const [showSuspend, setShowSuspend] = useState(false);
   const [reason, setReason] = useState("");
   const [until, setUntil] = useState("");
@@ -40,7 +41,10 @@ export function UserActions({ user }: UserActionsProps) {
     const { data: { user: admin } } = await supabase.auth.getUser();
     const suspendedUntil = type === "temporary" && until ? new Date(until).toISOString() : null;
 
-    await supabase.from("profiles").update({ status: "suspended" }).eq("id", user.id);
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ status: "suspended" })
+      .eq("id", user.id);
 
     await supabase.from("user_suspensions").insert({
       user_id: user.id,
@@ -58,6 +62,8 @@ export function UserActions({ user }: UserActionsProps) {
       message: reason,
     });
 
+    if (!updateError) onStatusChange?.("suspended");
+
     setReason("");
     setUntil("");
     setShowSuspend(false);
@@ -66,12 +72,16 @@ export function UserActions({ user }: UserActionsProps) {
 
   async function unsuspend() {
     setLoading(true);
-    await supabase.from("profiles").update({ status: "active" }).eq("id", user.id);
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ status: "active" })
+      .eq("id", user.id);
     await supabase
       .from("user_suspensions")
       .update({ is_active: false })
       .eq("user_id", user.id)
       .eq("is_active", true);
+    if (!updateError) onStatusChange?.("active");
     setLoading(false);
   }
 

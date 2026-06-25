@@ -57,7 +57,14 @@ export function AdminUserList({ initialUsers }: AdminUserListProps) {
                 @{user.username} · Joined {formatDate(user.created_at)}
               </p>
             </div>
-            <UserActions user={user} />
+            <UserActions
+              user={user}
+              onStatusChange={(status) =>
+                setUsers((prev) =>
+                  prev.map((u) => (u.id === user.id ? { ...u, status } : u))
+                )
+              }
+            />
           </CardContent>
         </Card>
       ))}
