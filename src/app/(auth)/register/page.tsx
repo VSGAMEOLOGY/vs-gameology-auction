@@ -10,7 +10,7 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function RegisterPage() {
-  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,14 +25,46 @@ export default function RegisterPage() {
     setSuccess("");
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signUp({
+    const trimmedUsername = username.trim();
+
+    const { data: usernameTaken, error: usernameCheckError } = await supabase.rpc(
+      "is_username_taken",
+      { p_username: trimmedUsername }
+    );
+
+    if (usernameCheckError) {
+      setError(usernameCheckError.message);
+      setLoading(false);
+      return;
+    }
+
+    if (usernameTaken) {
+      setError("This username is already taken. Please choose another.");
+      setLoading(false);
+      return;
+    }
+
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { username: trimmedUsername } },
     });
 
     if (authError) {
-      setError(authError.message);
+      if (/already registered|already been registered/i.test(authError.message)) {
+        setError("This email is already registered. Please login or use a different email.");
+      } else {
+        setError(authError.message);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Supabase returns a user with no identities (and no error) when the
+    // email already belongs to an existing account, to avoid leaking which
+    // emails are registered.
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      setError("This email is already registered. Please login or use a different email.");
       setLoading(false);
       return;
     }
@@ -53,9 +85,9 @@ export default function RegisterPage() {
             {error && <Alert variant="error">{error}</Alert>}
             {success && <Alert variant="success">{success}</Alert>}
             <Input
-              label="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
             />
             <Input
