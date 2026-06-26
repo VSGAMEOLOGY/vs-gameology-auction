@@ -8,12 +8,12 @@ import { Alert } from "@/components/ui/alert";
 import type { Profile } from "@/types/database";
 
 interface ProfileFormProps {
-  profile: Profile;
+  profile: Partial<Profile> & { id: string };
 }
 
 export function ProfileForm({ profile }: ProfileFormProps) {
-  const [fullName, setFullName] = useState(profile.real_name || "");
-const [phone, setPhone] = useState(profile.whatsapp || "");
+  const [fullName, setFullName] = useState(profile.real_name ?? "");
+  const [phone, setPhone] = useState(profile.whatsapp ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,9 +45,12 @@ const [phone, setPhone] = useState(profile.whatsapp || "");
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <Alert variant="error">{error}</Alert>}
       {message && <Alert variant="success">{message}</Alert>}
-      
+
+      {profile.username && (
+        <Input label="Username" value={profile.username} readOnly disabled />
+      )}
       <Input label="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-      <Input label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <Input label="Phone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <Button type="submit" loading={loading}>Save Changes</Button>
     </form>
   );

@@ -11,12 +11,12 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import type { Payment, ShippingAddress } from "@/types/database";
+import type { Payment, Profile, ShippingAddress } from "@/types/database";
 
 const EAST_MALAYSIA_STATES = ["Sabah", "Sarawak", "Labuan"];
 const WHATSAPP_NUMBER = "60139681228";
-const EAST_UNAVAILABLE_MESSAGE =
-  "This item does not ship to East Malaysia. Please choose Self Collection or contact us at https://wa.me/60139681228";
+const EAST_UNAVAILABLE_NOTICE =
+  "This item does not ship to East Malaysia. Please choose Self Collection or contact us on WhatsApp to arrange.";
 
 const MALAYSIA_STATES = [
   "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Perak", "Perlis",
@@ -43,6 +43,8 @@ const emptyAddress = {
 export default function PaymentDetailPage() {
   const { auctionId } = useParams<{ auctionId: string }>();
   const [userId, setUserId] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [profile, setProfile] = useState<Partial<Profile> | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
   const [addressMode, setAddressMode] = useState<"saved" | "new">("saved");
@@ -83,24 +85,33 @@ export default function PaymentDetailPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
+      setUserEmail(user.email ?? "");
 
-      const { data: pay } = await supabase
-        .from("payments")
-        .select("*, auction:auctions(*)")
-        .eq("auction_id", auctionId)
-        .eq("winner_user_id", user.id)
-        .single();
+      const [{ data: pay }, { data: prof }, { data: addrs }] = await Promise.all([
+        supabase
+          .from("payments")
+          .select("*, auction:auctions(*)")
+          .eq("auction_id", auctionId)
+          .eq("winner_user_id", user.id)
+          .single(),
+        supabase
+          .from("profiles")
+          .select("username, real_name, whatsapp")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("shipping_addresses")
+          .select("*")
+          .eq("user_id", user.id),
+      ]);
+
       if (pay) {
         setPayment(pay);
         if (pay.fulfillment_type === "collection" || pay.auction?.shipping_type === "collection") {
           setFulfillmentChoice("collection");
         }
       }
-
-      const { data: addrs } = await supabase
-        .from("shipping_addresses")
-        .select("*")
-        .eq("user_id", user.id);
+      if (prof) setProfile(prof);
       if (addrs && addrs.length > 0) {
         setAddresses(addrs);
         const defaultAddr = addrs.find((a) => a.is_default);
@@ -163,7 +174,7 @@ export default function PaymentDetailPage() {
       }
 
       if (finalState && resolveZone(finalState) === "east" && auction?.ships_to_east === false) {
-        setError(EAST_UNAVAILABLE_MESSAGE);
+        setError(EAST_UNAVAILABLE_NOTICE);
         return;
       }
     }
@@ -248,6 +259,21 @@ export default function PaymentDetailPage() {
     "Please **SHARE YOUR PAYMENT SCREENSHOT HERE** and also **UPLOAD IT ON THE WEBSITE** to complete your payment. Thank you!",
   ].join("\n");
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
+
+  const eastMalaysiaWhatsappMessage = [
+    "Hi, I would like to arrange payment and delivery for my winning bid. Details below:",
+    "",
+    `Auction: ${auction?.title ?? ""}`,
+    `Auction No: #${auction?.auction_number ?? ""}`,
+    `Condition: ${auction?.condition ?? ""}`,
+    `Winning Bid: RM${payment.winning_bid.toFixed(2)}`,
+    `Winner: ${profile?.username ?? ""}`,
+    `Email: ${userEmail}`,
+    `Phone: ${profile?.whatsapp || "not provided"}`,
+    "",
+    "I am from East Malaysia. Kindly advise on self-collection or delivery arrangement. Thank you!",
+  ].join("\n");
+  const eastMalaysiaWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(eastMalaysiaWhatsappMessage)}`;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -421,7 +447,20 @@ export default function PaymentDetailPage() {
                   )}
 
                   {eastUnavailable && (
-                    <Alert variant="error">{EAST_UNAVAILABLE_MESSAGE}</Alert>
+                    <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                      <p className="text-sm text-red-700">{EAST_UNAVAILABLE_NOTICE}</p>
+                      <a
+                        href={eastMalaysiaWhatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                        </svg>
+                        Contact Admin on WhatsApp
+                      </a>
+                    </div>
                   )}
                 </div>
               )}

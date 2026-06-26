@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Bell, Gavel, Menu, User, X, Shield } from "lucide-react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database";
 
 const navLinks = [
@@ -17,6 +18,7 @@ const navLinks = [
 
 export function Header() {
   const pathname = usePathname();
+  const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -25,13 +27,14 @@ export function Header() {
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
+      setAuthUser(user);
       if (!user) return;
 
       const { data } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (data) setProfile(data);
 
       const { count } = await supabase
@@ -61,7 +64,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => {
-            if (link.auth && !profile) return null;
+            if (link.auth && !authUser) return null;
             return (
               <Link
                 key={link.href}
@@ -90,7 +93,7 @@ export function Header() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          {profile ? (
+          {authUser ? (
             <>
               <Link href="/notifications" className="relative p-2 text-gray-600 hover:text-brand-600">
                 <Bell className="h-5 w-5" />
@@ -103,7 +106,7 @@ export function Header() {
               <Link href="/profile">
                 <Button variant="ghost" size="sm">
                   <User className="h-4 w-4" />
-                  {profile.real_name || profile.username || "Profile"}
+                  {profile?.real_name || profile?.username || "Profile"}
                 </Button>
               </Link>
               <Button variant="outline" size="sm" onClick={handleLogout}>
@@ -135,7 +138,7 @@ export function Header() {
         <div className="border-t border-gray-200 bg-white px-4 py-4 md:hidden">
           <nav className="flex flex-col gap-3">
             {navLinks.map((link) => {
-              if (link.auth && !profile) return null;
+              if (link.auth && !authUser) return null;
               return (
                 <Link
                   key={link.href}
@@ -152,7 +155,7 @@ export function Header() {
                 Admin Panel
               </Link>
             )}
-            {profile ? (
+            {authUser ? (
               <>
                 <Link href="/notifications" className="flex items-center gap-2 text-sm font-medium text-gray-700" onClick={() => setMobileOpen(false)}>
                   <Bell className="h-4 w-4" /> Notifications {unreadCount > 0 && `(${unreadCount})`}
