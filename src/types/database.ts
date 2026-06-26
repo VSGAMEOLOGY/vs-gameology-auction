@@ -24,7 +24,6 @@ export interface Profile {
   id: string;
   real_name: string;
   username: string;
-  email?: string | null;
   whatsapp: string;
   role: string;
   status: string;

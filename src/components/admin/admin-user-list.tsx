@@ -45,8 +45,7 @@ export function AdminUserList({ initialUsers, suspensionCounts = {} }: AdminUser
         const term = search.toLowerCase();
         return (
           u.username?.toLowerCase().includes(term) ||
-          u.real_name?.toLowerCase().includes(term) ||
-          u.email?.toLowerCase().includes(term)
+          u.real_name?.toLowerCase().includes(term)
         );
       })
     : users;

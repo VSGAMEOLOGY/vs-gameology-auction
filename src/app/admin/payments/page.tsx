@@ -21,7 +21,6 @@ type AuctionSnippet = {
 type WinnerSnippet = {
   username: string;
   real_name: string;
-  email?: string | null;
   whatsapp: string;
   completed_wins: number;
   unpaid_wins: number;
@@ -47,7 +46,7 @@ export default function AdminPaymentsPage() {
       let query = supabase
         .from("payments")
         .select(
-          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, email, whatsapp, completed_wins, unpaid_wins)"
+          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp, completed_wins, unpaid_wins)"
         )
         .order("created_at", { ascending: false });
 
@@ -55,7 +54,8 @@ export default function AdminPaymentsPage() {
         query = query.eq("payment_status", filter);
       }
 
-      const { data } = await query;
+      const { data, error } = await query;
+      if (error) setActionError(`Failed to load payments: ${error.message}`);
       if (data) setPayments(data as PaymentRow[]);
       setLoading(false);
     }
@@ -208,12 +208,6 @@ export default function AdminPaymentsPage() {
                             <span className="text-gray-500">Name: </span>
                             {payment.winner?.real_name ?? "—"}
                           </p>
-                          {payment.winner?.email && (
-                            <p>
-                              <span className="text-gray-500">Email: </span>
-                              {payment.winner.email}
-                            </p>
-                          )}
                           <p>
                             <span className="text-gray-500">WhatsApp: </span>
                             {payment.winner?.whatsapp ?? "—"}

@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Auth client — anon key, manages session cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,10 +27,15 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  // Service role client — bypasses RLS for reliable profile reads in middleware
+  const supabaseAdmin = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  console.log("AUTH USER:", user?.id);
 
   const isAuthPage =
     request.nextUrl.pathname.startsWith("/login") ||
@@ -54,14 +61,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAdminPage) {
-    const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-  
-  console.log("PROFILE:", profile);
-  console.log("PROFILE ERROR:", error);
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
     if (!profile || profile.role !== "admin") {
       const url = request.nextUrl.clone();
@@ -71,18 +75,18 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && !isAuthPage) {
-    const { data: profile } = await supabase
+    const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("status")
       .eq("id", user.id)
       .single();
 
     if (profile?.status === "suspended") {
-      // Attempt to lift any expired temporary suspension
+      // Attempt to lift any expired temporary suspension via the user's own session
       await supabase.rpc("lift_expired_suspension");
 
-      // Re-fetch status after the lift attempt — more reliable than trusting the RPC return value
-      const { data: currentProfile } = await supabase
+      // Re-check with service role to get the definitive post-lift status
+      const { data: currentProfile } = await supabaseAdmin
         .from("profiles")
         .select("status")
         .eq("id", user.id)
