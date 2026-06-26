@@ -245,7 +245,9 @@ export default function PaymentDetailPage() {
   const readyForPayment = isPending && !eastUnavailable && (isCollection || zone !== null);
   const zoneLabel = isCollection ? "Self Collection" : zone === "east" ? "East Malaysia" : "West Malaysia";
 
-  const paymentPageUrl = `${process.env.NEXT_PUBLIC_APP_URL}/payments/${auctionId}`;
+  const appOrigin = process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const paymentPageUrl = `${appOrigin}/payments/${auctionId}`;
 
   const whatsappMessage = [
     "Congratulations! You won the auction! \u{1F389}",

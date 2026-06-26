@@ -12,6 +12,7 @@ export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [filter, setFilter] = useState("submitted");
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState("");
   const supabase = createClient();
 
   useEffect(() => {
@@ -33,15 +34,24 @@ export default function AdminPaymentsPage() {
   }, [filter, supabase]);
 
   async function verifyPayment(payment: Payment, approved: boolean) {
+    setActionError("");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const payment_status = approved ? "verified" : "rejected";
-    await supabase.from("payments").update({
-      payment_status,
-      verified_by: user.id,
-      verified_at: new Date().toISOString(),
-    }).eq("id", payment.id);
+    const { error: updateError } = await supabase
+      .from("payments")
+      .update({
+        payment_status,
+        verified_by: user.id,
+        verified_at: new Date().toISOString(),
+      })
+      .eq("id", payment.id);
+
+    if (updateError) {
+      setActionError(`Failed to update payment: ${updateError.message}`);
+      return;
+    }
 
     await supabase.from("notifications").insert({
       user_id: payment.winner_user_id,
@@ -54,15 +64,14 @@ export default function AdminPaymentsPage() {
     });
 
     await supabase.from("admin_activity_logs").insert({
-      admin_user_id: user.id,
-      action_type: approved ? "verify_payment" : "reject_payment",
-      target_table: "payments",
-      target_record_id: payment.id.toString(),
+      admin_id: user.id,
+      action: approved ? "verify_payment" : "reject_payment",
+      entity_type: "payments",
+      entity_id: payment.id.toString(),
     });
 
-    // Remove from current list immediately, then switch to the new status tab
-    // so the admin can see the payment in its updated state. The tab switch
-    // triggers the useEffect to reload the correct filtered list from the DB.
+    // Remove from current list immediately then switch tab so the useEffect
+    // reloads the correct filtered list from the DB.
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
     setFilter(payment_status);
   }
@@ -72,6 +81,10 @@ export default function AdminPaymentsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">Payment Verification</h1>
+
+      {actionError && (
+        <p className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{actionError}</p>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {filters.map((f) => (
