@@ -18,6 +18,39 @@
 
 ---
 
+## Session Log
+
+### Day 2 — 26 June 2026 (tag: `v0.7-fixes-day2`)
+
+**Fixed:**
+- Profile page crash for normal users
+- Logout button missing for normal users
+- Password show/hide toggle on login and register forms
+- Profile row not created on signup (migrations 015 and 016)
+- Shipping address foreign key error
+- East Malaysia payment WhatsApp button with full auction details and payment upload link
+- Bid history showing Anonymous instead of username
+- File attachment confirmation wording on payment page
+- Payment verification not moving to Verified tab (migration 018)
+- Payment upload link showing `undefined` in WhatsApp message
+- Outbid notifications auto mark as read on click
+- Suspension management page showing expired suspensions as still active
+- Suspension count badge on admin user management page
+- Search bar on admin user management page
+- Payment verification dropdowns for auction and winner details
+- Profiles public read RLS policy (migration 017)
+
+**Migrations applied:**
+- 015: Fix handle_new_user trigger (remove dropped email column)
+- 016: Fix profiles NOT NULL column defaults (real_name, whatsapp, status, verification_status)
+- 017: Profiles public read RLS policy (fixes bid history Anonymous bug)
+- 018: Admin payments update RLS policy (fixes verify/reject in admin panel)
+
+**Still pending from this session:**
+- Suspension enforcement — user can still browse after being suspended (edge runtime blocks service-role approach; requires further investigation)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -114,23 +147,29 @@
 - [x] Auction management: create, edit, clone, schedule, bulk create
 - [x] Auction form: title, description, photos, category, condition, region, language, shipping type, per-zone fees, per-zone availability, starting price, increment, reserve, start/end times
 - [x] Schedule preview page
-- [x] User management: list users, suspend (temp/permanent with reason), unsuspend
-- [x] Payment management: view submitted payments, verify/reject (tab switches to Verified/Rejected after action), add admin notes
-- [x] Suspensions management page
+- [x] User management: list users, suspend (temp/permanent with reason), unsuspend, search by name/username, suspension count badge (total times suspended)
+- [x] Payment management: view submitted payments, verify/reject (tab switches to Verified/Rejected after action), add admin notes, expandable auction detail dropdown, expandable winner detail dropdown
+- [x] Suspensions management page: auto-lifts expired suspensions on page load, only shows truly active suspensions (permanent or future-dated)
 - [x] Activity logs page
 
 ---
 
 ## What's Still Pending / Known Gaps
 
-### Features Not Yet Built
-- [ ] Admin — edit/delete categories (UI exists in form dropdown but no category CRUD page)
-- [ ] Admin — business_settings UI (table exists, `payment_due_hours` used by `end_auction()`, but no admin page to manage it yet)
-- [ ] Admin — blacklist management UI (table exists with RLS, no front-end page)
+### Pre-Launch (Blocking)
+- [ ] **Suspension enforcement** — admin suspends user but user can still browse freely; middleware reads profiles via anon-key client whose RLS auth context may not be threading correctly; fix blocked by edge runtime incompatibility with service-role client. Confirm migration 017 is applied; if still broken, move suspension check to a server component middleware alternative or Supabase Edge Function.
+- [ ] Connect Hostinger domain to Vercel
+- [ ] Confirm pg_cron is active in Supabase dashboard
+- [ ] Set `NEXT_PUBLIC_APP_URL` in Vercel environment variables
+- [ ] Mobile layout QA pass
+- [ ] Terms of Service and Privacy Policy pages (currently stubs)
+
+### Nice to Have After Launch
 - [ ] Winner email notifications (Supabase email not wired beyond auth emails)
-- [ ] Public Terms / Privacy pages are stubs
-- [ ] Search / filter / sort on auction list (currently shows all non-draft auctions)
-- [ ] Mobile-optimised layout pass (Tailwind classes exist but no dedicated QA pass)
+- [ ] Search / filter / sort on auction list page
+- [ ] Admin — category CRUD page
+- [ ] Admin — blacklist management UI
+- [ ] Admin — business_settings UI
 
 ### Known Issues / Watch Points
 - The `admin_activity_logs` query on the dashboard selects `full_name` from profiles, but the live schema uses `username`; the dashboard activity log may show blank names for users registered after the schema change.
