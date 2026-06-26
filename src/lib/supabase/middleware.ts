@@ -78,9 +78,17 @@ export async function updateSession(request: NextRequest) {
       .single();
 
     if (profile?.status === "suspended") {
-      const { data: lifted } = await supabase.rpc("lift_expired_suspension");
+      // Attempt to lift any expired temporary suspension
+      await supabase.rpc("lift_expired_suspension");
 
-      if (!lifted && !request.nextUrl.pathname.startsWith("/suspended")) {
+      // Re-fetch status after the lift attempt — more reliable than trusting the RPC return value
+      const { data: currentProfile } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", user.id)
+        .single();
+
+      if (currentProfile?.status === "suspended" && !request.nextUrl.pathname.startsWith("/suspended")) {
         const url = request.nextUrl.clone();
         url.pathname = "/suspended";
         return NextResponse.redirect(url);

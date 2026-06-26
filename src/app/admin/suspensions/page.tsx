@@ -5,12 +5,49 @@ import { formatDate } from "@/lib/utils";
 
 export default async function AdminSuspensionsPage() {
   const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  // Auto-lift expired temporary suspensions when admin views this page
+  const { data: expiredSuspensions } = await supabase
+    .from("user_suspensions")
+    .select("id, user_id")
+    .eq("is_active", true)
+    .eq("suspension_type", "temporary")
+    .lt("suspended_until", now);
+
+  if (expiredSuspensions && expiredSuspensions.length > 0) {
+    const expiredIds = expiredSuspensions.map((s) => s.id);
+    const expiredUserIds = [...new Set(expiredSuspensions.map((s) => s.user_id))];
+
+    await supabase
+      .from("user_suspensions")
+      .update({ is_active: false })
+      .in("id", expiredIds);
+
+    // Check which users have no remaining active suspensions and restore them
+    const { data: remainingActive } = await supabase
+      .from("user_suspensions")
+      .select("user_id")
+      .in("user_id", expiredUserIds)
+      .eq("is_active", true);
+
+    const stillSuspendedIds = new Set((remainingActive ?? []).map((s) => s.user_id));
+    const nowFreeUserIds = expiredUserIds.filter((id) => !stillSuspendedIds.has(id));
+
+    if (nowFreeUserIds.length > 0) {
+      await supabase
+        .from("profiles")
+        .update({ status: "active" })
+        .in("id", nowFreeUserIds);
+    }
+  }
 
   const [{ data: active }, { data: blacklist }, { data: history }] = await Promise.all([
     supabase
       .from("user_suspensions")
       .select("*")
       .eq("is_active", true)
+      .or(`suspension_type.eq.permanent,suspended_until.gt.${now}`)
       .order("created_at", { ascending: false }),
     supabase.from("blacklist").select("*").order("created_at", { ascending: false }),
     supabase
