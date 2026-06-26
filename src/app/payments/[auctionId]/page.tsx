@@ -51,6 +51,7 @@ export default function PaymentDetailPage() {
   const [addressId, setAddressId] = useState("");
   const [newAddress, setNewAddress] = useState(emptyAddress);
   const [proofUrl, setProofUrl] = useState("");
+  const [selectedFileName, setSelectedFileName] = useState("");
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [fulfillmentChoice, setFulfillmentChoice] = useState<"shipping" | "collection">("shipping");
   const [message, setMessage] = useState("");
@@ -60,9 +61,11 @@ export default function PaymentDetailPage() {
 
   async function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    const name = file?.name ?? "";
     e.target.value = "";
     if (!file) return;
     setError("");
+    setSelectedFileName(name);
     setReceiptUploading(true);
     try {
       const ext = file.name.split(".").pop() ?? "jpg";
@@ -242,6 +245,8 @@ export default function PaymentDetailPage() {
   const readyForPayment = isPending && !eastUnavailable && (isCollection || zone !== null);
   const zoneLabel = isCollection ? "Self Collection" : zone === "east" ? "East Malaysia" : "West Malaysia";
 
+  const paymentPageUrl = `${process.env.NEXT_PUBLIC_APP_URL}/payments/${auctionId}`;
+
   const whatsappMessage = [
     "Congratulations! You won the auction! \u{1F389}",
     "",
@@ -256,7 +261,11 @@ export default function PaymentDetailPage() {
     "Account No: 5123 4373 9288",
     "Account Name: VS GAMEOLOGY",
     "",
-    "Please **SHARE YOUR PAYMENT SCREENSHOT HERE** and also **UPLOAD IT ON THE WEBSITE** to complete your payment. Thank you!",
+    "Please SHARE YOUR PAYMENT SCREENSHOT HERE and also UPLOAD IT ON THE WEBSITE to complete your payment.",
+    "",
+    `To upload your payment proof, please visit: ${paymentPageUrl}`,
+    "",
+    "Thank you!",
   ].join("\n");
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
 
@@ -271,7 +280,11 @@ export default function PaymentDetailPage() {
     `Email: ${userEmail}`,
     `Phone: ${profile?.whatsapp || "not provided"}`,
     "",
-    "I am from East Malaysia. Kindly advise on self-collection or delivery arrangement. Thank you!",
+    "I am from East Malaysia. Kindly advise on self-collection or delivery arrangement.",
+    "",
+    `To upload your payment proof, please visit: ${paymentPageUrl}`,
+    "",
+    "Thank you!",
   ].join("\n");
   const eastMalaysiaWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(eastMalaysiaWhatsappMessage)}`;
 
@@ -488,11 +501,11 @@ export default function PaymentDetailPage() {
                 <p className="text-sm font-medium text-gray-700">Upload Payment Screenshot</p>
                 <div className="flex items-center gap-4">
                   {proofUrl && (
-                    <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-gray-200">
                       <Image src={proofUrl} alt="Payment screenshot preview" fill className="object-cover" />
                     </div>
                   )}
-                  <div>
+                  <div className="min-w-0">
                     <input
                       type="file"
                       accept="image/*"
@@ -500,7 +513,14 @@ export default function PaymentDetailPage() {
                       disabled={receiptUploading}
                       className="text-sm text-gray-600"
                     />
-                    {receiptUploading && <p className="mt-1 text-sm text-gray-500">Uploading...</p>}
+                    {receiptUploading && (
+                      <p className="mt-1 text-sm text-gray-500">Uploading…</p>
+                    )}
+                    {!receiptUploading && proofUrl && selectedFileName && (
+                      <p className="mt-1 truncate text-sm text-green-600">
+                        ✓ {selectedFileName}
+                      </p>
+                    )}
                   </div>
                 </div>
 

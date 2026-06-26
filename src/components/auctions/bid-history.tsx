@@ -18,7 +18,7 @@ export function BidHistory({ auctionId, refreshKey }: BidHistoryProps) {
     async function loadBids() {
       const { data } = await supabase
         .from("bids")
-        .select("*, bidder:profiles(real_name, username)")
+        .select("*, bidder:profiles(username)")
         .eq("auction_id", auctionId)
         .order("created_at", { ascending: false })
         .limit(20);

@@ -60,7 +60,11 @@ export default function AdminPaymentsPage() {
       target_record_id: payment.id.toString(),
     });
 
+    // Remove from current list immediately, then switch to the new status tab
+    // so the admin can see the payment in its updated state. The tab switch
+    // triggers the useEffect to reload the correct filtered list from the DB.
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    setFilter(payment_status);
   }
 
   const filters = ["all", "submitted", "pending", "verified", "rejected"];
