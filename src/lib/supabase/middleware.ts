@@ -1,11 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  // Auth client — anon key, manages session cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,12 +23,6 @@ export async function updateSession(request: NextRequest) {
         },
       },
     }
-  );
-
-  // Service role client — bypasses RLS for reliable profile reads in middleware
-  const supabaseAdmin = createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   const {
@@ -61,7 +53,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && isAdminPage) {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
@@ -75,18 +67,16 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user && !isAuthPage) {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile } = await supabase
       .from("profiles")
       .select("status")
       .eq("id", user.id)
       .single();
 
     if (profile?.status === "suspended") {
-      // Attempt to lift any expired temporary suspension via the user's own session
       await supabase.rpc("lift_expired_suspension");
 
-      // Re-check with service role to get the definitive post-lift status
-      const { data: currentProfile } = await supabaseAdmin
+      const { data: currentProfile } = await supabase
         .from("profiles")
         .select("status")
         .eq("id", user.id)
