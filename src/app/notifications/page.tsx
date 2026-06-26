@@ -98,6 +98,14 @@ export default function NotificationsPage() {
                             ? `/payments/${notification.related_auction_id}`
                             : `/auctions/${notification.related_auction_id}`
                         }
+                        onClick={() => {
+                          if (
+                            notification.notification_type === "bid_outbid" &&
+                            !notification.is_read
+                          ) {
+                            markRead(notification.id);
+                          }
+                        }}
                       >
                         <Button variant="outline" size="sm">View</Button>
                       </Link>
