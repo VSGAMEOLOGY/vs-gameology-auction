@@ -15,6 +15,27 @@ export function SuspensionListener() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      if (!pathname.startsWith("/suspended")) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("status")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.status === "suspended") {
+          await supabase.rpc("lift_expired_suspension");
+          const { data: rechecked } = await supabase
+            .from("profiles")
+            .select("status")
+            .eq("id", user.id)
+            .single();
+          if (rechecked?.status === "suspended") {
+            window.location.href = "/suspended";
+            return;
+          }
+        }
+      }
+
       channel = supabase
         .channel(`profile-status-${user.id}`)
         .on(
