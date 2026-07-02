@@ -16,6 +16,7 @@ async function fetchProfile(
         headers: {
           apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
           Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+          "Accept-Profile": "public",
         },
       }
     );
@@ -108,6 +109,7 @@ export async function updateSession(request: NextRequest) {
               apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
               Authorization: `Bearer ${session.access_token}`,
               "Content-Type": "application/json",
+              "Content-Profile": "public",
             },
             body: "{}",
           }
