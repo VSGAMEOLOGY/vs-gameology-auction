@@ -263,7 +263,13 @@ export default function PaymentDetailPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paymentId: payment.id, event: "submitted" }),
-    }).catch((err) => console.error("Failed to notify admin:", err));
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          console.error("Failed to notify admin:", res.status, await res.text());
+        }
+      })
+      .catch((err) => console.error("Failed to notify admin:", err));
 
     setLoading(false);
   }
@@ -608,7 +614,9 @@ export default function PaymentDetailPage() {
                 <p className="mt-1 text-sm text-gray-600">
                   {isRejected
                     ? "Your payment could not be verified."
-                    : "Your payment submission has been received."}
+                    : payment.payment_status === "verified"
+                      ? "Your payment has been verified successfully! Thank you!"
+                      : "Your payment submission has been received."}
                 </p>
               </div>
 

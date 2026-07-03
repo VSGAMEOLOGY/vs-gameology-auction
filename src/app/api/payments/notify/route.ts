@@ -26,139 +26,205 @@ function getServiceClient() {
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as Partial<NotifyBody>;
-  const { paymentId, event, approved } = body;
+  try {
+    const body = (await request.json()) as Partial<NotifyBody>;
+    const { paymentId, event, approved } = body;
 
-  if (!paymentId || !event) {
-    return NextResponse.json({ error: "Missing paymentId or event" }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-
-  if (event === "submitted") {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!paymentId || !event) {
+      console.error("/api/payments/notify: missing paymentId or event", body);
+      return NextResponse.json({ error: "Missing paymentId or event" }, { status: 400 });
     }
 
-    const { data: ownPayment } = await supabase
+    const supabase = await createClient();
+
+    if (event === "submitted") {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        console.error("/api/payments/notify: no authenticated user for 'submitted' event");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { data: ownPayment, error: ownPaymentError } = await supabase
+        .from("payments")
+        .select("winner_user_id")
+        .eq("id", paymentId)
+        .single();
+
+      if (ownPaymentError) {
+        console.error("/api/payments/notify: failed to load payment for auth check", ownPaymentError);
+      }
+
+      if (!ownPayment || ownPayment.winner_user_id !== user.id) {
+        console.error("/api/payments/notify: caller does not own payment", { paymentId, userId: user.id });
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else {
+      try {
+        await requireAdmin(supabase);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Unauthorized";
+        console.error("/api/payments/notify: admin check failed", message);
+        return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 401 });
+      }
+    }
+
+    const service = getServiceClient();
+
+    const { data: payment, error: paymentError } = await service
       .from("payments")
-      .select("winner_user_id")
+      .select("*, auction:auctions(title, auction_number)")
       .eq("id", paymentId)
       .single();
 
-    if (!ownPayment || ownPayment.winner_user_id !== user.id) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (paymentError || !payment) {
+      console.error("/api/payments/notify: payment not found", paymentId, paymentError);
+      return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
-  } else {
-    try {
-      await requireAdmin(supabase);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unauthorized";
-      return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 401 });
+
+    const { data: winnerProfile, error: profileError } = await service
+      .from("profiles")
+      .select("username")
+      .eq("id", payment.winner_user_id)
+      .single();
+
+    if (profileError) {
+      console.error("/api/payments/notify: failed to load winner profile", profileError);
     }
-  }
 
-  const service = getServiceClient();
+    const { data: winnerAuth, error: winnerAuthError } = await service.auth.admin.getUserById(
+      payment.winner_user_id
+    );
+    if (winnerAuthError) {
+      console.error("/api/payments/notify: failed to look up winner auth user", winnerAuthError);
+    }
+    const winnerEmail = winnerAuth?.user?.email ?? null;
 
-  const { data: payment } = await service
-    .from("payments")
-    .select("*, auction:auctions(title, auction_number)")
-    .eq("id", paymentId)
-    .single();
+    const auctionTitle: string = payment.auction?.title ?? "Auction";
+    const username: string = winnerProfile?.username ?? "Customer";
 
-  if (!payment) {
-    return NextResponse.json({ error: "Payment not found" }, { status: 404 });
-  }
+    let emailSent = false;
+    let notified = false;
 
-  const { data: winnerProfile } = await service
-    .from("profiles")
-    .select("username")
-    .eq("id", payment.winner_user_id)
-    .single();
+    if (event === "submitted") {
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (!adminEmail) {
+        console.error("/api/payments/notify: ADMIN_EMAIL env var is not set, skipping admin email");
+      } else {
+        const { subject, text } = buildPaymentSubmittedEmail({
+          auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+          username,
+          amount: payment.total_amount,
+          submittedAt: formatDate(new Date().toISOString()),
+        });
+        const result = await sendEmail({ to: adminEmail, subject, text });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send admin email", result.error);
+        }
+      }
 
-  const { data: winnerAuth } = await service.auth.admin.getUserById(payment.winner_user_id);
-  const winnerEmail = winnerAuth?.user?.email ?? null;
+      const { data: admins, error: adminsError } = await service
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin");
 
-  const auctionTitle: string = payment.auction?.title ?? "Auction";
-  const username: string = winnerProfile?.username ?? "Customer";
+      if (adminsError) {
+        console.error("/api/payments/notify: failed to look up admin profiles", adminsError);
+      }
 
-  let emailSent = false;
-  let notified = false;
+      if (admins && admins.length > 0) {
+        const { error: notifyError } = await service.from("notifications").insert(
+          admins.map((admin) => ({
+            user_id: admin.id,
+            notification_type: "payment_submitted",
+            title: "New Payment Submitted",
+            message: `${username} submitted payment of ${formatCurrency(payment.total_amount)} for ${auctionTitle}.`,
+            related_auction_id: payment.auction_id,
+          }))
+        );
+        if (notifyError) {
+          console.error("/api/payments/notify: failed to insert admin notifications", notifyError);
+        }
+        notified = !notifyError;
+      } else {
+        console.error("/api/payments/notify: no admin profiles found to notify");
+      }
+    } else if (event === "reviewed") {
+      if (approved) {
+        if (!winnerEmail) {
+          console.error("/api/payments/notify: no email on file for winner, skipping verified email", payment.winner_user_id);
+        } else {
+          const { subject, text } = buildPaymentVerifiedEmail({
+            username,
+            auctionTitle,
+            isCollection: payment.fulfillment_type === "collection",
+            collectionDate: payment.collection_date,
+            collectionTimeSlot: payment.collection_time_slot,
+          });
+          const result = await sendEmail({ to: winnerEmail, subject, text });
+          emailSent = result.ok;
+          if (!result.ok) {
+            console.error("/api/payments/notify: failed to send verified email", result.error);
+          }
+        }
+      }
 
-  if (event === "submitted") {
-    const adminEmail = process.env.ADMIN_EMAIL;
-    if (adminEmail) {
-      const { subject, text } = buildPaymentSubmittedEmail({
-        auctionTitle,
-        auctionNumber: payment.auction?.auction_number ?? "-",
-        username,
-        amount: payment.total_amount,
-        submittedAt: formatDate(new Date().toISOString()),
+      const { error: notifyError } = await service.from("notifications").insert({
+        user_id: payment.winner_user_id,
+        notification_type: approved ? "payment_verified" : "payment_rejected",
+        title: approved ? "Payment Verified" : "Payment Rejected",
+        message: approved
+          ? `Your payment for ${auctionTitle} has been verified.`
+          : `Your payment for ${auctionTitle} was rejected. Please contact support.`,
+        related_auction_id: payment.auction_id,
       });
-      emailSent = (await sendEmail({ to: adminEmail, subject, text })).ok;
-    }
+      if (notifyError) {
+        console.error("/api/payments/notify: failed to insert reviewed notification", notifyError);
+      }
+      notified = !notifyError;
+    } else if (event === "dispatched") {
+      if (!payment.tracking_number) {
+        console.error("/api/payments/notify: dispatched event with no tracking_number", paymentId);
+        return NextResponse.json({ error: "No tracking number set" }, { status: 400 });
+      }
 
-    const { data: admins } = await service.from("profiles").select("id").eq("role", "admin");
-    if (admins && admins.length > 0) {
-      const { error } = await service.from("notifications").insert(
-        admins.map((admin) => ({
-          user_id: admin.id,
-          notification_type: "payment_submitted",
-          title: "New Payment Submitted",
-          message: `${username} submitted payment of ${formatCurrency(payment.total_amount)} for ${auctionTitle}.`,
-          related_auction_id: payment.auction_id,
-        }))
-      );
-      notified = !error;
-    }
-  } else if (event === "reviewed") {
-    if (approved && winnerEmail) {
-      const { subject, text } = buildPaymentVerifiedEmail({
-        username,
-        auctionTitle,
-        isCollection: payment.fulfillment_type === "collection",
-        collectionDate: payment.collection_date,
-        collectionTimeSlot: payment.collection_time_slot,
+      if (!winnerEmail) {
+        console.error("/api/payments/notify: no email on file for winner, skipping dispatched email", payment.winner_user_id);
+      } else {
+        const { subject, text } = buildOrderDispatchedEmail({
+          username,
+          auctionTitle,
+          trackingNumber: payment.tracking_number,
+        });
+        const result = await sendEmail({ to: winnerEmail, subject, text });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send dispatched email", result.error);
+        }
+      }
+
+      const { error: notifyError } = await service.from("notifications").insert({
+        user_id: payment.winner_user_id,
+        notification_type: "order_dispatched",
+        title: "Order Dispatched",
+        message: `Your order has been dispatched! Tracking number: ${payment.tracking_number}`,
+        related_auction_id: payment.auction_id,
       });
-      emailSent = (await sendEmail({ to: winnerEmail, subject, text })).ok;
+      if (notifyError) {
+        console.error("/api/payments/notify: failed to insert dispatched notification", notifyError);
+      }
+      notified = !notifyError;
     }
 
-    const { error } = await service.from("notifications").insert({
-      user_id: payment.winner_user_id,
-      notification_type: approved ? "payment_verified" : "payment_rejected",
-      title: approved ? "Payment Verified" : "Payment Rejected",
-      message: approved
-        ? `Your payment for ${auctionTitle} has been verified.`
-        : `Your payment for ${auctionTitle} was rejected. Please contact support.`,
-      related_auction_id: payment.auction_id,
-    });
-    notified = !error;
-  } else if (event === "dispatched") {
-    if (!payment.tracking_number) {
-      return NextResponse.json({ error: "No tracking number set" }, { status: 400 });
-    }
-
-    if (winnerEmail) {
-      const { subject, text } = buildOrderDispatchedEmail({
-        username,
-        auctionTitle,
-        trackingNumber: payment.tracking_number,
-      });
-      emailSent = (await sendEmail({ to: winnerEmail, subject, text })).ok;
-    }
-
-    const { error } = await service.from("notifications").insert({
-      user_id: payment.winner_user_id,
-      notification_type: "order_dispatched",
-      title: "Order Dispatched",
-      message: `Your order has been dispatched! Tracking number: ${payment.tracking_number}`,
-      related_auction_id: payment.auction_id,
-    });
-    notified = !error;
+    return NextResponse.json({ ok: true, emailSent, notified });
+  } catch (err) {
+    console.error("/api/payments/notify: unhandled error", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unexpected error" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ ok: true, emailSent, notified });
 }

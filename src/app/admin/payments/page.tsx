@@ -80,9 +80,13 @@ export default function AdminPaymentsPage() {
       const data = await res.json();
       if (res.ok && data.email) {
         setCustomerEmails((prev) => ({ ...prev, [userId]: data.email }));
+      } else {
+        console.error("Failed to load customer email:", res.status, data);
+        setCustomerEmails((prev) => ({ ...prev, [userId]: "Unavailable" }));
       }
     } catch (err) {
       console.error("Failed to load customer email:", err);
+      setCustomerEmails((prev) => ({ ...prev, [userId]: "Unavailable" }));
     }
   }
 
@@ -96,11 +100,14 @@ export default function AdminPaymentsPage() {
 
   async function notify(paymentId: number, event: "reviewed" | "dispatched", approved?: boolean) {
     try {
-      await fetch("/api/payments/notify", {
+      const res = await fetch("/api/payments/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId, event, approved }),
       });
+      if (!res.ok) {
+        console.error("Failed to send notification:", res.status, await res.text());
+      }
     } catch (err) {
       console.error("Failed to send notification:", err);
     }
@@ -258,18 +265,6 @@ export default function AdminPaymentsPage() {
                       {/* Winner dropdown */}
                       {winnerOpen && (
                         <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">
-                          <p>
-                            <span className="text-gray-500">Username: </span>
-                            @{payment.winner?.username ?? "—"}
-                          </p>
-                          <p>
-                            <span className="text-gray-500">Name: </span>
-                            {payment.winner?.real_name ?? "—"}
-                          </p>
-                          <p>
-                            <span className="text-gray-500">WhatsApp: </span>
-                            {payment.winner?.whatsapp ?? "—"}
-                          </p>
                           <p>
                             <span className="text-gray-500">Completed wins: </span>
                             {payment.winner?.completed_wins ?? 0}
