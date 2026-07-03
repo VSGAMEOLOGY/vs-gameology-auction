@@ -21,10 +21,12 @@ export async function sendEmail({
   to,
   subject,
   text,
+  html,
 }: {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 }): Promise<{ ok: boolean; error?: string }> {
   const transport = getTransporter();
   if (!transport) {
@@ -38,6 +40,7 @@ export async function sendEmail({
       to,
       subject,
       text,
+      ...(html ? { html } : {}),
     });
     return { ok: true };
   } catch (err) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/admin";
 import { sendEmail } from "@/lib/email";
 import {
@@ -17,13 +17,6 @@ type NotifyBody = {
   event: NotifyEvent;
   approved?: boolean;
 };
-
-function getServiceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function POST(request: Request) {
   try {
@@ -70,7 +63,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const service = getServiceClient();
+    const service = createServiceClient();
 
     const { data: payment, error: paymentError } = await service
       .from("payments")
@@ -112,14 +105,14 @@ export async function POST(request: Request) {
       if (!adminEmail) {
         console.error("/api/payments/notify: ADMIN_EMAIL env var is not set, skipping admin email");
       } else {
-        const { subject, text } = buildPaymentSubmittedEmail({
+        const { subject, text, html } = buildPaymentSubmittedEmail({
           auctionTitle,
           auctionNumber: payment.auction?.auction_number ?? "-",
           username,
           amount: payment.total_amount,
           submittedAt: formatDate(new Date().toISOString()),
         });
-        const result = await sendEmail({ to: adminEmail, subject, text });
+        const result = await sendEmail({ to: adminEmail, subject, text, html });
         emailSent = result.ok;
         if (!result.ok) {
           console.error("/api/payments/notify: failed to send admin email", result.error);
@@ -157,14 +150,19 @@ export async function POST(request: Request) {
         if (!winnerEmail) {
           console.error("/api/payments/notify: no email on file for winner, skipping verified email", payment.winner_user_id);
         } else {
-          const { subject, text } = buildPaymentVerifiedEmail({
+          const { subject, text, html } = buildPaymentVerifiedEmail({
             username,
             auctionTitle,
+            auctionNumber: payment.auction?.auction_number ?? "-",
+            winningBid: payment.winning_bid,
+            shippingFee: payment.shipping_fee,
+            totalAmount: payment.total_amount,
             isCollection: payment.fulfillment_type === "collection",
             collectionDate: payment.collection_date,
             collectionTimeSlot: payment.collection_time_slot,
+            paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
           });
-          const result = await sendEmail({ to: winnerEmail, subject, text });
+          const result = await sendEmail({ to: winnerEmail, subject, text, html });
           emailSent = result.ok;
           if (!result.ok) {
             console.error("/api/payments/notify: failed to send verified email", result.error);
@@ -194,12 +192,13 @@ export async function POST(request: Request) {
       if (!winnerEmail) {
         console.error("/api/payments/notify: no email on file for winner, skipping dispatched email", payment.winner_user_id);
       } else {
-        const { subject, text } = buildOrderDispatchedEmail({
+        const { subject, text, html } = buildOrderDispatchedEmail({
           username,
           auctionTitle,
+          totalAmount: payment.total_amount,
           trackingNumber: payment.tracking_number,
         });
-        const result = await sendEmail({ to: winnerEmail, subject, text });
+        const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
         if (!result.ok) {
           console.error("/api/payments/notify: failed to send dispatched email", result.error);

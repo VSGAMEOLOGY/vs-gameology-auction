@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { requireAdmin } from "@/lib/admin";
 
 export async function GET(request: Request) {
@@ -21,10 +21,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });
     }
 
-    const service = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const service = createServiceClient();
 
     const { data, error } = await service.auth.admin.getUserById(userId);
     if (error) {
