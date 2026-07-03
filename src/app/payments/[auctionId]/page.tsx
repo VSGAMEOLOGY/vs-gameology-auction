@@ -7,10 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateOnly, cn } from "@/lib/utils";
+import { ChevronDown, UploadCloud, CheckCircle, XCircle, Truck } from "lucide-react";
 import type { Payment, Profile, ShippingAddress } from "@/types/database";
 
 const EAST_MALAYSIA_STATES = ["Sabah", "Sarawak", "Labuan"];
@@ -22,6 +24,13 @@ const MALAYSIA_STATES = [
   "Johor", "Kedah", "Kelantan", "Melaka", "Negeri Sembilan", "Pahang", "Perak", "Perlis",
   "Penang", "Sabah", "Sarawak", "Selangor", "Terengganu", "Kuala Lumpur", "Putrajaya", "Labuan",
 ];
+
+const TIME_SLOTS = [
+  "10am - 12pm", "12pm - 2pm", "2pm - 4pm", "4pm - 6pm", "6pm - 8pm", "8pm - 10pm",
+];
+
+const PICKUP_ADDRESS =
+  "NO 92-A (TINGKAT 1), JALAN BPU 1, BANDAR PUCHONG UTAMA, 47100 PUCHONG, SELANGOR";
 
 function resolveZone(state: string): "east" | "west" {
   return EAST_MALAYSIA_STATES.includes(state) ? "east" : "west";
@@ -54,7 +63,10 @@ export default function PaymentDetailPage() {
   const [selectedFileName, setSelectedFileName] = useState("");
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [fulfillmentChoice, setFulfillmentChoice] = useState<"shipping" | "collection">("shipping");
-  const [message, setMessage] = useState("");
+  const [collectionDate, setCollectionDate] = useState("");
+  const [collectionTimeSlot, setCollectionTimeSlot] = useState("");
+  const [collectionRemarks, setCollectionRemarks] = useState("");
+  const [showSummary, setShowSummary] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
@@ -93,7 +105,7 @@ export default function PaymentDetailPage() {
       const [{ data: pay }, { data: prof }, { data: addrs }] = await Promise.all([
         supabase
           .from("payments")
-          .select("*, auction:auctions(*)")
+          .select("*, auction:auctions(*), shipping_address:shipping_addresses(*)")
           .eq("auction_id", auctionId)
           .eq("winner_user_id", user.id)
           .single(),
@@ -145,7 +157,6 @@ export default function PaymentDetailPage() {
     e.preventDefault();
     if (!payment) return;
     setError("");
-    setMessage("");
 
     if (!proofUrl) {
       setError("Please upload your payment screenshot");
@@ -154,7 +165,12 @@ export default function PaymentDetailPage() {
 
     let finalState: string | undefined;
 
-    if (!isCollection) {
+    if (isCollection) {
+      if (!collectionDate || !collectionTimeSlot) {
+        setError("Please select a collection date and time slot");
+        return;
+      }
+    } else {
       if (addressMode === "new") {
         if (
           !newAddress.recipient_name ||
@@ -216,6 +232,13 @@ export default function PaymentDetailPage() {
       shipping_fee: shippingFee,
       total_amount: payment.winning_bid + shippingFee,
       ...(shippingAddressId ? { shipping_address_id: shippingAddressId } : {}),
+      ...(isCollection
+        ? {
+            collection_date: collectionDate,
+            collection_time_slot: collectionTimeSlot,
+            collection_remarks: collectionRemarks || null,
+          }
+        : {}),
     };
 
     const { error: updateError } = await supabase
@@ -225,10 +248,23 @@ export default function PaymentDetailPage() {
 
     if (updateError) {
       setError(updateError.message);
-    } else {
-      setMessage("Payment proof submitted. Awaiting admin verification.");
-      setPayment({ ...payment, ...updates });
+      setLoading(false);
+      return;
     }
+
+    const { data: refreshed } = await supabase
+      .from("payments")
+      .select("*, auction:auctions(*), shipping_address:shipping_addresses(*)")
+      .eq("id", payment.id)
+      .single();
+    setPayment(refreshed ?? { ...payment, ...updates });
+
+    fetch("/api/payments/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId: payment.id, event: "submitted" }),
+    }).catch((err) => console.error("Failed to notify admin:", err));
+
     setLoading(false);
   }
 
@@ -237,39 +273,18 @@ export default function PaymentDetailPage() {
   }
 
   const isPending = payment.payment_status === "pending";
+  const isRejected = payment.payment_status === "rejected";
   const displayedShippingFee = isPending ? resolvedShippingFee : payment.shipping_fee;
   const displayedTotal = isPending
     ? payment.winning_bid + (isCollection ? 0 : resolvedShippingFee)
     : payment.total_amount;
 
   const readyForPayment = isPending && !eastUnavailable && (isCollection || zone !== null);
-  const zoneLabel = isCollection ? "Self Collection" : zone === "east" ? "East Malaysia" : "West Malaysia";
+  const today = new Date().toISOString().slice(0, 10);
 
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" ? window.location.origin : "");
   const paymentPageUrl = `${appOrigin}/payments/${auctionId}`;
-
-  const whatsappMessage = [
-    "Congratulations! You won the auction! \u{1F389}",
-    "",
-    `Auction No: ${auction?.auction_number ?? ""}`,
-    `Item: ${payment.auction?.title ?? ""}`,
-    `Winning Bid: RM ${payment.winning_bid.toFixed(2)}`,
-    `Shipping Fee: RM ${displayedShippingFee.toFixed(2)} (${zoneLabel})`,
-    `Total Amount: RM ${displayedTotal.toFixed(2)}`,
-    "",
-    "Payment Details:",
-    "Bank: Maybank",
-    "Account No: 5123 4373 9288",
-    "Account Name: VS GAMEOLOGY",
-    "",
-    "Please SHARE YOUR PAYMENT SCREENSHOT HERE and also UPLOAD IT ON THE WEBSITE to complete your payment.",
-    "",
-    `To upload your payment proof, please visit: ${paymentPageUrl}`,
-    "",
-    "Thank you!",
-  ].join("\n");
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
 
   const eastMalaysiaWhatsappMessage = [
     "Hi, I would like to arrange payment and delivery for my winning bid. Details below:",
@@ -334,37 +349,46 @@ export default function PaymentDetailPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          {isPending && (
             <div>
-              <p className="text-gray-500">Winning Bid</p>
-              <p className="font-medium">{formatCurrency(payment.winning_bid)}</p>
+              <button
+                type="button"
+                onClick={() => setShowSummary((s) => !s)}
+                className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700"
+              >
+                <span>Show order summary</span>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", showSummary && "rotate-180")} />
+              </button>
+              {showSummary && (
+                <div className="space-y-2 rounded-b-lg border border-t-0 border-gray-200 px-4 py-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Item</span>
+                    <span className="font-medium">{auction?.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Shipping Fee</span>
+                    <span>
+                      {isCollection ? (
+                        <span className="text-green-600">RM 0 (Self Collection)</span>
+                      ) : !zone ? (
+                        <span className="text-gray-400">Select an address</span>
+                      ) : (
+                        formatCurrency(displayedShippingFee)
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
+                    <span>Total</span>
+                    <span className="text-brand-600">{formatCurrency(displayedTotal)}</span>
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <p className="text-gray-500">Shipping Fee</p>
-              <p className="font-medium">
-                {isCollection ? (
-                  <span className="text-green-600">RM 0 (Self Collection)</span>
-                ) : isPending && !zone ? (
-                  <span className="text-gray-400">Select an address</span>
-                ) : (
-                  formatCurrency(displayedShippingFee)
-                )}
-              </p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-gray-500">Total</p>
-              <p className="text-xl font-bold text-brand-600">{formatCurrency(displayedTotal)}</p>
-            </div>
-          </div>
-
-          {payment.admin_notes && (
-            <Alert variant="info">Admin note: {payment.admin_notes}</Alert>
           )}
 
           {isPending && (
             <form onSubmit={handleSubmit} className="space-y-4 border-t pt-4">
               {error && <Alert variant="error">{error}</Alert>}
-              {message && <Alert variant="success">{message}</Alert>}
 
               {!isCollection && (
                 <div className="space-y-3">
@@ -480,51 +504,83 @@ export default function PaymentDetailPage() {
                 </div>
               )}
 
+              {isCollection && (
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-700">Self Collection Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      type="date"
+                      label="Collection Date"
+                      min={today}
+                      value={collectionDate}
+                      onChange={(e) => setCollectionDate(e.target.value)}
+                      required
+                    />
+                    <Select
+                      label="Time Slot"
+                      value={collectionTimeSlot}
+                      onChange={(e) => setCollectionTimeSlot(e.target.value)}
+                      options={[
+                        { value: "", label: "Select Time Slot" },
+                        ...TIME_SLOTS.map((s) => ({ value: s, label: s })),
+                      ]}
+                      required
+                    />
+                  </div>
+                  <Textarea
+                    label="Remarks (optional)"
+                    value={collectionRemarks}
+                    onChange={(e) => setCollectionRemarks(e.target.value)}
+                    rows={2}
+                  />
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
+                    <p className="font-medium text-gray-700">Pickup Location</p>
+                    <p>{PICKUP_ADDRESS}</p>
+                  </div>
+                </div>
+              )}
+
               {readyForPayment && (
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <p className="text-sm font-semibold text-gray-700">Payment Details</p>
+                  <p className="text-sm font-semibold text-gray-700">Bank Transfer Details</p>
                   <div className="text-sm text-gray-600">
                     <p>Bank: Maybank</p>
-                    <p>Account No: 5123 4373 9288</p>
                     <p>Account Name: VS GAMEOLOGY</p>
+                    <p>Account No: 5123 4373 9288</p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
-                  >
-                    Pay via WhatsApp
-                  </Button>
+                  <p className="text-sm font-semibold text-brand-600">
+                    Pending amount: {formatCurrency(displayedTotal)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Please transfer the exact amount and upload your payment screenshot below.
+                  </p>
                 </div>
               )}
 
               <div className="space-y-3 border-t pt-4">
                 <p className="text-sm font-medium text-gray-700">Upload Payment Screenshot</p>
-                <div className="flex items-center gap-4">
-                  {proofUrl && (
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-gray-200">
+                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleReceiptChange}
+                    disabled={receiptUploading}
+                    className="hidden"
+                  />
+                  {proofUrl ? (
+                    <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
                       <Image src={proofUrl} alt="Payment screenshot preview" fill className="object-cover" />
                     </div>
+                  ) : (
+                    <UploadCloud className="h-8 w-8 text-gray-400" />
                   )}
-                  <div className="min-w-0">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleReceiptChange}
-                      disabled={receiptUploading}
-                      className="text-sm text-gray-600"
-                    />
-                    {receiptUploading && (
-                      <p className="mt-1 text-sm text-gray-500">Uploading…</p>
-                    )}
-                    {!receiptUploading && proofUrl && selectedFileName && (
-                      <p className="mt-1 truncate text-sm text-green-600">
-                        ✓ {selectedFileName}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  <span className="text-sm text-gray-600">
+                    {receiptUploading ? "Uploading…" : "Tap to upload"}
+                  </span>
+                </label>
+                {!receiptUploading && proofUrl && selectedFileName && (
+                  <p className="truncate text-sm text-green-600">✓ {selectedFileName}</p>
+                )}
 
                 <Button
                   type="submit"
@@ -536,6 +592,113 @@ export default function PaymentDetailPage() {
                 </Button>
               </div>
             </form>
+          )}
+
+          {!isPending && (
+            <div className="space-y-6 py-2 text-center">
+              {isRejected ? (
+                <XCircle className="mx-auto h-14 w-14 text-red-500" />
+              ) : (
+                <CheckCircle className="mx-auto h-14 w-14 text-green-500" />
+              )}
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {isRejected ? "Payment Rejected" : `Thank You ${profile?.username ?? ""}!`}
+                </h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  {isRejected
+                    ? "Your payment could not be verified."
+                    : "Your payment submission has been received."}
+                </p>
+              </div>
+
+              {payment.admin_notes && (
+                <Alert variant={isRejected ? "error" : "info"}>Admin note: {payment.admin_notes}</Alert>
+              )}
+
+              <div className="rounded-lg border border-gray-200 p-4 text-left text-sm">
+                <p className="mb-2 font-semibold text-gray-700">Order Summary</p>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Item</span>
+                    <span className="font-medium">{auction?.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Winning Bid</span>
+                    <span>{formatCurrency(payment.winning_bid)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Shipping Fee</span>
+                    <span>{formatCurrency(payment.shipping_fee)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold">
+                    <span>Total</span>
+                    <span>{formatCurrency(payment.total_amount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4 text-left text-sm">
+                <p className="mb-2 font-semibold text-gray-700">Receiver Information</p>
+                <div className="space-y-1 text-gray-600">
+                  <p>{profile?.real_name}</p>
+                  <p>{profile?.whatsapp}</p>
+                  <p>{userEmail}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4 text-left text-sm">
+                {payment.fulfillment_type === "collection" ? (
+                  <>
+                    <p className="mb-2 font-semibold text-gray-700">In-store Self Collection</p>
+                    <div className="space-y-1 text-gray-600">
+                      <p>{PICKUP_ADDRESS}</p>
+                      <p>
+                        Collection Date:{" "}
+                        {payment.collection_date ? formatDateOnly(payment.collection_date) : "-"}
+                      </p>
+                      <p>Time Slot: {payment.collection_time_slot ?? "-"}</p>
+                      {payment.collection_remarks && <p>Remarks: {payment.collection_remarks}</p>}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2 font-semibold text-gray-700">Billing Address</p>
+                    {payment.shipping_address ? (
+                      <div className="space-y-1 text-gray-600">
+                        <p>
+                          {payment.shipping_address.label} — {payment.shipping_address.recipient_name}
+                        </p>
+                        <p>{payment.shipping_address.address_line1}</p>
+                        {payment.shipping_address.address_line2 && (
+                          <p>{payment.shipping_address.address_line2}</p>
+                        )}
+                        <p>
+                          {payment.shipping_address.city}, {payment.shipping_address.state}{" "}
+                          {payment.shipping_address.postal_code}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400">No address on file</p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <p className="text-left text-sm text-gray-500">
+                Billing method: <span className="font-medium text-gray-700">Bank Transfer</span>
+              </p>
+
+              {payment.tracking_number && (
+                <div className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-left">
+                  <div className="flex items-center gap-2 text-brand-700">
+                    <Truck className="h-5 w-5" />
+                    <p className="font-semibold">Tracking Number</p>
+                  </div>
+                  <p className="mt-1 text-lg font-bold text-brand-700">{payment.tracking_number}</p>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

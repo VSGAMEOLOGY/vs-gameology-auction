@@ -20,6 +20,13 @@ export function formatDate(date: string | Date) {
   }).format(new Date(date));
 }
 
+export function formatDateOnly(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-MY", { dateStyle: "medium" }).format(
+    new Date(year, month - 1, day)
+  );
+}
+
 export function getTimeRemaining(endTime: string): string {
   const diff = new Date(endTime).getTime() - Date.now();
   if (diff <= 0) return "Ended";

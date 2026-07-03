@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDateOnly } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
-import type { Payment } from "@/types/database";
+import type { Payment, ShippingAddress } from "@/types/database";
 
 type AuctionSnippet = {
   auction_number: string;
@@ -26,12 +27,13 @@ type WinnerSnippet = {
   unpaid_wins: number;
 };
 
-type PaymentRow = Omit<Payment, "auction" | "winner"> & {
+type PaymentRow = Omit<Payment, "auction" | "winner" | "shipping_address"> & {
   auction: AuctionSnippet | null;
   winner: WinnerSnippet | null;
+  shipping_address: ShippingAddress | null;
 };
 
-type OpenDropdown = { paymentId: number; type: "auction" | "winner" } | null;
+type OpenDropdown = { paymentId: number; type: "auction" | "winner" | "delivery" } | null;
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
@@ -39,6 +41,9 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState("");
   const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
+  const [customerEmails, setCustomerEmails] = useState<Record<string, string>>({});
+  const [trackingDrafts, setTrackingDrafts] = useState<Record<number, string>>({});
+  const [trackingSaving, setTrackingSaving] = useState<number | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -46,7 +51,7 @@ export default function AdminPaymentsPage() {
       let query = supabase
         .from("payments")
         .select(
-          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp, completed_wins, unpaid_wins)"
+          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp, completed_wins, unpaid_wins), shipping_address:shipping_addresses(*)"
         )
         .order("created_at", { ascending: false });
 
@@ -56,17 +61,49 @@ export default function AdminPaymentsPage() {
 
       const { data, error } = await query;
       if (error) setActionError(`Failed to load payments: ${error.message}`);
-      if (data) setPayments(data as PaymentRow[]);
+      if (data) {
+        setPayments(data as PaymentRow[]);
+        setTrackingDrafts(
+          Object.fromEntries((data as PaymentRow[]).map((p) => [p.id, p.tracking_number ?? ""]))
+        );
+      }
       setLoading(false);
     }
     setOpenDropdown(null);
     load();
   }, [filter, supabase]);
 
-  function toggleDropdown(paymentId: number, type: "auction" | "winner") {
-    setOpenDropdown((prev) =>
-      prev?.paymentId === paymentId && prev?.type === type ? null : { paymentId, type }
-    );
+  async function loadCustomerEmail(userId: string) {
+    if (customerEmails[userId]) return;
+    try {
+      const res = await fetch(`/api/admin/customer-email?userId=${userId}`);
+      const data = await res.json();
+      if (res.ok && data.email) {
+        setCustomerEmails((prev) => ({ ...prev, [userId]: data.email }));
+      }
+    } catch (err) {
+      console.error("Failed to load customer email:", err);
+    }
+  }
+
+  function toggleDropdown(payment: PaymentRow, type: "auction" | "winner" | "delivery") {
+    setOpenDropdown((prev) => {
+      const isOpen = prev?.paymentId === payment.id && prev?.type === type;
+      if (!isOpen && type === "delivery") loadCustomerEmail(payment.winner_user_id);
+      return isOpen ? null : { paymentId: payment.id, type };
+    });
+  }
+
+  async function notify(paymentId: number, event: "reviewed" | "dispatched", approved?: boolean) {
+    try {
+      await fetch("/api/payments/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId, event, approved }),
+      });
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
   }
 
   async function verifyPayment(payment: PaymentRow, approved: boolean) {
@@ -89,15 +126,7 @@ export default function AdminPaymentsPage() {
       return;
     }
 
-    await supabase.from("notifications").insert({
-      user_id: payment.winner_user_id,
-      notification_type: approved ? "payment_verified" : "payment_rejected",
-      title: approved ? "Payment Verified" : "Payment Rejected",
-      message: approved
-        ? `Your payment for ${payment.auction?.title} has been verified.`
-        : `Your payment for ${payment.auction?.title} was rejected. Please contact support.`,
-      related_auction_id: payment.auction_id,
-    });
+    await notify(payment.id, "reviewed", approved);
 
     await supabase.from("admin_activity_logs").insert({
       admin_id: user.id,
@@ -108,6 +137,31 @@ export default function AdminPaymentsPage() {
 
     setPayments((prev) => prev.filter((p) => p.id !== payment.id));
     setFilter(payment_status);
+  }
+
+  async function saveTracking(payment: PaymentRow) {
+    const trackingNumber = trackingDrafts[payment.id]?.trim() ?? "";
+    if (!trackingNumber || trackingNumber === (payment.tracking_number ?? "")) return;
+
+    setTrackingSaving(payment.id);
+    setActionError("");
+
+    const { error: updateError } = await supabase
+      .from("payments")
+      .update({ tracking_number: trackingNumber })
+      .eq("id", payment.id);
+
+    if (updateError) {
+      setActionError(`Failed to save tracking number: ${updateError.message}`);
+      setTrackingSaving(null);
+      return;
+    }
+
+    setPayments((prev) =>
+      prev.map((p) => (p.id === payment.id ? { ...p, tracking_number: trackingNumber } : p))
+    );
+    await notify(payment.id, "dispatched");
+    setTrackingSaving(null);
   }
 
   const filters = ["all", "submitted", "pending", "verified", "rejected"];
@@ -141,6 +195,10 @@ export default function AdminPaymentsPage() {
           {payments.map((payment) => {
             const auctionOpen = openDropdown?.paymentId === payment.id && openDropdown?.type === "auction";
             const winnerOpen = openDropdown?.paymentId === payment.id && openDropdown?.type === "winner";
+            const deliveryOpen = openDropdown?.paymentId === payment.id && openDropdown?.type === "delivery";
+            const isCollection = payment.fulfillment_type === "collection";
+            const canTrack = payment.payment_status === "verified" && !isCollection;
+            const draft = trackingDrafts[payment.id] ?? "";
 
             return (
               <Card key={payment.id}>
@@ -149,7 +207,7 @@ export default function AdminPaymentsPage() {
                     <div className="min-w-0 flex-1">
                       {/* Auction title — clickable */}
                       <button
-                        onClick={() => toggleDropdown(payment.id, "auction")}
+                        onClick={() => toggleDropdown(payment, "auction")}
                         className="flex items-center gap-1 font-medium text-gray-900 hover:text-brand-600 transition-colors text-left"
                       >
                         <span>{payment.auction?.title ?? "Unknown auction"}</span>
@@ -188,7 +246,7 @@ export default function AdminPaymentsPage() {
 
                       {/* Winner name — clickable */}
                       <button
-                        onClick={() => toggleDropdown(payment.id, "winner")}
+                        onClick={() => toggleDropdown(payment, "winner")}
                         className="mt-1 flex items-center gap-1 text-sm text-gray-500 hover:text-brand-600 transition-colors text-left"
                       >
                         <span>{payment.winner?.real_name ?? "Unknown winner"}</span>
@@ -223,6 +281,75 @@ export default function AdminPaymentsPage() {
                         </div>
                       )}
 
+                      {/* Delivery details — clickable, only meaningful once submitted */}
+                      {payment.payment_status !== "pending" && (
+                        <button
+                          onClick={() => toggleDropdown(payment, "delivery")}
+                          className="mt-1 flex items-center gap-1 text-sm text-gray-500 hover:text-brand-600 transition-colors text-left"
+                        >
+                          <span>Delivery Details</span>
+                          <ChevronDown
+                            className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${deliveryOpen ? "rotate-180" : ""}`}
+                          />
+                        </button>
+                      )}
+
+                      {deliveryOpen && (
+                        <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">
+                          <p>
+                            <span className="text-gray-500">Full name: </span>
+                            {payment.winner?.real_name ?? "—"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">WhatsApp: </span>
+                            {payment.winner?.whatsapp ?? "—"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">Email: </span>
+                            {customerEmails[payment.winner_user_id] ?? "Loading…"}
+                          </p>
+                          {isCollection ? (
+                            <>
+                              <p>
+                                <span className="text-gray-500">Collection date: </span>
+                                {payment.collection_date ? formatDateOnly(payment.collection_date) : "—"}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Time slot: </span>
+                                {payment.collection_time_slot ?? "—"}
+                              </p>
+                              {payment.collection_remarks && (
+                                <p>
+                                  <span className="text-gray-500">Remarks: </span>
+                                  {payment.collection_remarks}
+                                </p>
+                              )}
+                            </>
+                          ) : payment.shipping_address ? (
+                            <>
+                              <p>
+                                <span className="text-gray-500">Address label: </span>
+                                {payment.shipping_address.label}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Address: </span>
+                                {payment.shipping_address.address_line1}
+                                {payment.shipping_address.address_line2
+                                  ? `, ${payment.shipping_address.address_line2}`
+                                  : ""}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">City/State/Postcode: </span>
+                                {payment.shipping_address.city}, {payment.shipping_address.state}{" "}
+                                {payment.shipping_address.postal_code}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-gray-400">No shipping address on file</p>
+                          )}
+                        </div>
+                      )}
+
                       <p className="mt-2 text-lg font-bold text-brand-600">
                         {formatCurrency(payment.total_amount)}
                       </p>
@@ -235,6 +362,28 @@ export default function AdminPaymentsPage() {
                         >
                           View payment proof
                         </a>
+                      )}
+
+                      {canTrack && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <Input
+                            value={draft}
+                            onChange={(e) =>
+                              setTrackingDrafts((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                            }
+                            placeholder="Tracking number"
+                            className="max-w-xs"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={trackingSaving === payment.id}
+                            disabled={!draft.trim() || draft.trim() === (payment.tracking_number ?? "")}
+                            onClick={() => saveTracking(payment)}
+                          >
+                            Save
+                          </Button>
+                        </div>
                       )}
                     </div>
 

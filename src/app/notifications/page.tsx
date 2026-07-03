@@ -92,11 +92,14 @@ export default function NotificationsPage() {
                     {notification.related_auction_id != null && (
                       <Link
                         href={
-                          notification.notification_type === "auction_won" ||
-                          notification.notification_type === "payment_verified" ||
-                          notification.notification_type === "payment_rejected"
-                            ? `/payments/${notification.related_auction_id}`
-                            : `/auctions/${notification.related_auction_id}`
+                          notification.notification_type === "payment_submitted"
+                            ? "/admin/payments"
+                            : notification.notification_type === "auction_won" ||
+                                notification.notification_type === "payment_verified" ||
+                                notification.notification_type === "payment_rejected" ||
+                                notification.notification_type === "order_dispatched"
+                              ? `/payments/${notification.related_auction_id}`
+                              : `/auctions/${notification.related_auction_id}`
                         }
                         onClick={() => {
                           if (

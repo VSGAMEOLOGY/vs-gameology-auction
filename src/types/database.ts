@@ -17,6 +17,8 @@ export type NotificationType =
   | "payment_verified"
   | "payment_rejected"
   | "account_suspended"
+  | "payment_submitted"
+  | "order_dispatched"
   | "general";
 export type SuspensionType = "temporary" | "permanent";
 
@@ -137,6 +139,10 @@ export interface Payment {
   extension_granted: boolean;
   extension_until: string | null;
   shipping_address_id: number | null;
+  collection_date: string | null;
+  collection_time_slot: string | null;
+  collection_remarks: string | null;
+  tracking_number: string | null;
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;
@@ -144,6 +150,7 @@ export interface Payment {
   updated_at: string;
   auction?: Auction;
   winner?: Profile;
+  shipping_address?: ShippingAddress;
 }
 
 export interface Notification {
