@@ -23,8 +23,12 @@ type WinnerSnippet = {
   username: string;
   real_name: string;
   whatsapp: string;
-  completed_wins: number;
-  unpaid_wins: number;
+};
+
+type WinCounts = {
+  completed: number;
+  pendingVerification: number;
+  unpaid: number;
 };
 
 type PaymentRow = Omit<Payment, "auction" | "winner" | "shipping_address"> & {
@@ -42,6 +46,9 @@ export default function AdminPaymentsPage() {
   const [actionError, setActionError] = useState("");
   const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
   const [customerEmails, setCustomerEmails] = useState<Record<string, string>>({});
+  const [customerEmailErrors, setCustomerEmailErrors] = useState<Record<string, string>>({});
+  const [winCounts, setWinCounts] = useState<Record<string, WinCounts>>({});
+  const [winCountsError, setWinCountsError] = useState<Record<string, string>>({});
   const [trackingDrafts, setTrackingDrafts] = useState<Record<number, string>>({});
   const [trackingSaving, setTrackingSaving] = useState<number | null>(null);
   const supabase = createClient();
@@ -51,7 +58,7 @@ export default function AdminPaymentsPage() {
       let query = supabase
         .from("payments")
         .select(
-          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp, completed_wins, unpaid_wins), shipping_address:shipping_addresses(*)"
+          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp), shipping_address:shipping_addresses(*)"
         )
         .order("created_at", { ascending: false });
 
@@ -75,25 +82,64 @@ export default function AdminPaymentsPage() {
 
   async function loadCustomerEmail(userId: string) {
     if (customerEmails[userId]) return;
+    setCustomerEmailErrors((prev) => {
+      if (!(userId in prev)) return prev;
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
     try {
       const res = await fetch(`/api/admin/customer-email?userId=${userId}`);
       const data = await res.json();
       if (res.ok && data.email) {
         setCustomerEmails((prev) => ({ ...prev, [userId]: data.email }));
       } else {
+        const reason = data?.error ?? `HTTP ${res.status}`;
         console.error("Failed to load customer email:", res.status, data);
-        setCustomerEmails((prev) => ({ ...prev, [userId]: "Unavailable" }));
+        setCustomerEmailErrors((prev) => ({ ...prev, [userId]: reason }));
       }
     } catch (err) {
       console.error("Failed to load customer email:", err);
-      setCustomerEmails((prev) => ({ ...prev, [userId]: "Unavailable" }));
+      setCustomerEmailErrors((prev) => ({
+        ...prev,
+        [userId]: err instanceof Error ? err.message : "Network error",
+      }));
     }
+  }
+
+  async function loadWinCounts(userId: string) {
+    if (winCounts[userId]) return;
+    setWinCountsError((prev) => {
+      if (!(userId in prev)) return prev;
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+    const { data, error } = await supabase
+      .from("payments")
+      .select("payment_status")
+      .eq("winner_user_id", userId);
+
+    if (error) {
+      console.error("Failed to load win counts:", error);
+      setWinCountsError((prev) => ({ ...prev, [userId]: error.message }));
+      return;
+    }
+
+    const counts: WinCounts = { completed: 0, pendingVerification: 0, unpaid: 0 };
+    for (const row of data ?? []) {
+      if (row.payment_status === "verified") counts.completed++;
+      else if (row.payment_status === "submitted") counts.pendingVerification++;
+      else if (row.payment_status === "pending") counts.unpaid++;
+    }
+    setWinCounts((prev) => ({ ...prev, [userId]: counts }));
   }
 
   function toggleDropdown(payment: PaymentRow, type: "auction" | "winner" | "delivery") {
     setOpenDropdown((prev) => {
       const isOpen = prev?.paymentId === payment.id && prev?.type === type;
       if (!isOpen && type === "delivery") loadCustomerEmail(payment.winner_user_id);
+      if (!isOpen && type === "winner") loadWinCounts(payment.winner_user_id);
       return isOpen ? null : { paymentId: payment.id, type };
     });
   }
@@ -265,14 +311,26 @@ export default function AdminPaymentsPage() {
                       {/* Winner dropdown */}
                       {winnerOpen && (
                         <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">
-                          <p>
-                            <span className="text-gray-500">Completed wins: </span>
-                            {payment.winner?.completed_wins ?? 0}
-                          </p>
-                          <p>
-                            <span className="text-gray-500">Unpaid wins: </span>
-                            {payment.winner?.unpaid_wins ?? 0}
-                          </p>
+                          {winCountsError[payment.winner_user_id] ? (
+                            <p className="text-red-500">
+                              Failed to load win counts ({winCountsError[payment.winner_user_id]})
+                            </p>
+                          ) : (
+                            <>
+                              <p>
+                                <span className="text-gray-500">Completed Wins: </span>
+                                {winCounts[payment.winner_user_id]?.completed ?? "…"}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Pending Verification: </span>
+                                {winCounts[payment.winner_user_id]?.pendingVerification ?? "…"}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Unpaid: </span>
+                                {winCounts[payment.winner_user_id]?.unpaid ?? "…"}
+                              </p>
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -301,7 +359,14 @@ export default function AdminPaymentsPage() {
                           </p>
                           <p>
                             <span className="text-gray-500">Email: </span>
-                            {customerEmails[payment.winner_user_id] ?? "Loading…"}
+                            {customerEmails[payment.winner_user_id] ??
+                              (customerEmailErrors[payment.winner_user_id] ? (
+                                <span className="text-red-500">
+                                  Unavailable ({customerEmailErrors[payment.winner_user_id]})
+                                </span>
+                              ) : (
+                                "Loading…"
+                              ))}
                           </p>
                           {isCollection ? (
                             <>
