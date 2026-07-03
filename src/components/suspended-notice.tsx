@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LogoutButton } from "@/components/logout-button";
+import { SuspendedTopbar } from "@/components/suspended-topbar";
+import { SuspendedBackdrop } from "@/components/suspended-backdrop";
 import { formatDate } from "@/lib/utils";
 import { SuspensionWatcher } from "@/app/suspended/suspension-watcher";
 
@@ -38,26 +40,34 @@ export async function SuspendedNotice() {
   const whatsappUrl = `https://wa.me/60139681228?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="flex min-h-screen flex-col">
       <SuspensionWatcher until={until} />
-      <Card className="w-full max-w-md">
-        <CardContent className="py-8 text-center">
-          <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />
-          <h1 className="mt-4 text-xl font-bold text-gray-900">Account Suspended</h1>
-          <p className="mt-2 text-gray-600">{reason}</p>
-          {until && (
-            <p className="mt-2 text-sm text-gray-500">
-              Suspension ends: {formatDate(until)}
-            </p>
-          )}
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="primary">Contact Us</Button>
-            </a>
-            <LogoutButton />
-          </div>
-        </CardContent>
-      </Card>
+      <SuspendedTopbar />
+      <div className="relative flex-1 overflow-hidden">
+        <div className="pointer-events-none select-none blur-sm brightness-[0.65]">
+          <SuspendedBackdrop />
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center px-4 py-12">
+          <Card className="w-full max-w-md shadow-xl">
+            <CardContent className="py-8 text-center">
+              <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />
+              <h1 className="mt-4 text-xl font-bold text-gray-900">Account Suspended</h1>
+              <p className="mt-2 text-gray-600">{reason}</p>
+              {until && (
+                <p className="mt-2 text-sm text-gray-500">
+                  Suspension ends: {formatDate(until)}
+                </p>
+              )}
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="primary">Contact Us</Button>
+                </a>
+                <LogoutButton />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
