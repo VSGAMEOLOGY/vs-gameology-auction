@@ -20,6 +20,21 @@
 
 ## Session Log
 
+### Day 3 — 3 July 2026 (tag: `v0.8-suspension-complete`)
+
+**Fixed — suspension enforcement now fully working end-to-end:**
+- Admin's UPDATE on another user's `profiles` row was silently filtered to zero rows by RLS (no JS error, so the UI proceeded as if suspend/unsuspend/role-change succeeded while `profiles.status`/`role` never actually changed) — restored the missing "Admins can update any profile" policy (migration 019)
+- Suspended users are now blocked from every page: the root layout does a server-side content swap so there's no flash of real content before redirect
+- `/suspended` view redesigned: topbar keeps only the logo (no nav links) and a Logout button; behind the notice card, a blurred/dimmed replica of the homepage hero + features section is shown instead of a plain grey background, so the site still looks "present" while access is blocked
+- Only Contact Us (WhatsApp appeal) and Logout are reachable while suspended
+- Auto-lift of expired temporary suspensions confirmed working (`lift_expired_suspension()`, migration 011)
+- Suspension notice correctly shows the suspension reason and end time (`suspended_until`)
+
+**Migrations applied:**
+- 019: Restore admin profiles UPDATE RLS policy (fixes suspend/unsuspend and role changes silently no-op'ing)
+
+---
+
 ### Day 2 — 26 June 2026 (tag: `v0.7-fixes-day2`)
 
 **Fixed:**
@@ -65,7 +80,7 @@
 
 ---
 
-## Database Schema (18 migrations applied)
+## Database Schema (19 migrations applied)
 
 ### Tables
 - **profiles** — live columns: `id`, `username` (unique), `real_name`, `whatsapp`, `role` (user/admin), `status` (active/suspended), `verification_status`, `completed_wins`, `unpaid_wins`, `total_bids`, `admin_notes`, `created_at`, `updated_at`. Note: `email`, `full_name`, `phone`, `is_suspended` were dropped during Dashboard schema evolution.
@@ -116,6 +131,7 @@
 | 016 | `016_fix_profiles_not_null_defaults.sql` | Fix trigger: supply all NOT NULL columns (real_name, whatsapp, status, verification_status) |
 | 017 | `017_profiles_public_read_rls.sql` | RLS: allow authenticated users to read all profiles rows (fixes bid history showing Anonymous) |
 | 018 | `018_admin_payments_update_rls.sql` | RLS: reinstate admin UPDATE policy on payments (fixes verify/reject in admin panel) |
+| 019 | `019_admin_profiles_update_rls.sql` | RLS: reinstate admin UPDATE policy on profiles (fixes suspend/unsuspend and role changes silently no-op'ing) |
 
 ---
 
@@ -132,7 +148,7 @@
 - [x] East Malaysia no-shipping: WhatsApp button with full auction + winner details pre-filled
 - [x] Profile page: username (read-only), full name, phone/WhatsApp, shipping address manager (add/edit/delete/default)
 - [x] Password show/hide toggle on login and register forms
-- [x] Suspension wall (`/suspended`): shows reason, expiry, WhatsApp appeal link; auto-lifts expired temp suspensions; realtime redirect if suspended mid-session
+- [x] Suspension wall (`/suspended`): shows reason, expiry, WhatsApp appeal link; auto-lifts expired temp suspensions; realtime redirect if suspended mid-session; blocks every page via server-side layout swap; blurred/dimmed homepage backdrop behind the notice card with a logo-only, nav-free topbar; only Contact Us and Logout reachable
 
 ### Auth
 - [x] Register (username-based, blacklist check, duplicate username check, profiles row auto-created by trigger)
@@ -147,7 +163,7 @@
 - [x] Auction management: create, edit, clone, schedule, bulk create
 - [x] Auction form: title, description, photos, category, condition, region, language, shipping type, per-zone fees, per-zone availability, starting price, increment, reserve, start/end times
 - [x] Schedule preview page
-- [x] User management: list users, suspend (temp/permanent with reason), unsuspend, search by name/username, suspension count badge (total times suspended)
+- [x] User management: list users, suspend (temp/permanent with reason), unsuspend, search by name/username, suspension count badge (total times suspended) — status/role updates now persist correctly (migration 019) and enforcement blocks the user immediately
 - [x] Payment management: view submitted payments, verify/reject (tab switches to Verified/Rejected after action), add admin notes, expandable auction detail dropdown, expandable winner detail dropdown
 - [x] Suspensions management page: auto-lifts expired suspensions on page load, only shows truly active suspensions (permanent or future-dated)
 - [x] Activity logs page
@@ -157,7 +173,6 @@
 ## What's Still Pending / Known Gaps
 
 ### Pre-Launch (Blocking)
-- [ ] **Suspension enforcement** — admin suspends user but user can still browse freely; middleware reads profiles via anon-key client whose RLS auth context may not be threading correctly; fix blocked by edge runtime incompatibility with service-role client. Confirm migration 017 is applied; if still broken, move suspension check to a server component middleware alternative or Supabase Edge Function.
 - [ ] Connect Hostinger domain to Vercel
 - [ ] Confirm pg_cron is active in Supabase dashboard
 - [ ] Set `NEXT_PUBLIC_APP_URL` in Vercel environment variables
@@ -201,6 +216,6 @@ All values are in `.env.local`. For Vercel deployment, set these in the Vercel p
 - [ ] Update Supabase Auth `site_url` and redirect URLs to production domain
 - [ ] Confirm pg_cron job is enabled and running in Supabase dashboard
 - [ ] Configure Supabase Auth SMTP / email templates for production
-- [ ] Apply all migrations (001–018) via Supabase SQL Editor
+- [ ] Apply all migrations (001–019) via Supabase SQL Editor
 - [ ] Create storage buckets `auction-images` and `payment-receipts` (public read)
 - [ ] Seed at least one admin user (set `role = 'admin'` in profiles table)
