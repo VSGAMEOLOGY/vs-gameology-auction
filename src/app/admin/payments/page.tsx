@@ -154,7 +154,11 @@ export default function AdminPaymentsPage() {
     });
   }
 
-  async function notify(paymentId: number, event: "reviewed" | "dispatched" | "collected", approved?: boolean) {
+  async function notify(
+    paymentId: number,
+    event: "reviewed" | "dispatched" | "collected" | "delivered",
+    approved?: boolean
+  ) {
     try {
       const res = await fetch("/api/payments/notify", {
         method: "POST",
@@ -259,6 +263,8 @@ export default function AdminPaymentsPage() {
       return;
     }
 
+    await notify(payment.id, "delivered");
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -346,9 +352,8 @@ export default function AdminPaymentsPage() {
       });
     }
 
-    setPayments((prev) =>
-      prev.map((p) => (p.id === payment.id ? { ...p, payment_status: "collected" } : p))
-    );
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    setFilter("collected");
     setCollectionSaving(null);
   }
 

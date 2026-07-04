@@ -198,11 +198,14 @@ Vercel deploys automatically on push. The cron job in `vercel.json` runs every m
 
 ## Cron Job
 
-The `/api/cron/auctions` endpoint is protected by `CRON_SECRET`. Vercel Cron sends this automatically. For manual testing:
+The `/api/cron/auctions` and `/api/cron/deliveries` endpoints are protected by `CRON_SECRET`. Vercel Cron sends this automatically (see `vercel.json`). For manual testing:
 
 ```bash
 curl -H "Authorization: Bearer your-cron-secret" https://your-domain.vercel.app/api/cron/auctions
+curl -H "Authorization: Bearer your-cron-secret" https://your-domain.vercel.app/api/cron/deliveries
 ```
+
+`/api/cron/deliveries` runs daily and auto-marks shipping orders `delivered` (with an email + notification) 14 days after `dispatched_at`. It replaces the raw `pg_cron` job from migration 023, which could update the row but not send an email.
 
 ## Bulk Auction Import Format
 

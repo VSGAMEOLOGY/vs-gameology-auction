@@ -96,29 +96,49 @@ function highlightBox(label: string, value: string) {
   </table>`;
 }
 
+function baseSummaryRows(
+  auctionTitle: string,
+  auctionNumber: string,
+  winningBid: number,
+  shippingFeeLabel: string
+): [string, string][] {
+  return [
+    ["Auction Title", auctionTitle],
+    ["Auction Number", auctionNumber],
+    ["Winning Bid", formatCurrency(winningBid)],
+    ["Shipping Fee", shippingFeeLabel],
+  ];
+}
+
 export function buildPaymentSubmittedEmail({
   auctionTitle,
   auctionNumber,
+  winningBid,
+  shippingFeeLabel,
+  totalAmount,
   username,
-  amount,
   submittedAt,
+  adminPanelUrl,
 }: {
   auctionTitle: string;
   auctionNumber: string;
+  winningBid: number;
+  shippingFeeLabel: string;
+  totalAmount: number;
   username: string;
-  amount: number;
   submittedAt: string;
+  adminPanelUrl: string;
 }) {
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">A customer has submitted payment for review.</p>
     ${summaryTable([
-      ["Auction Title", auctionTitle],
-      ["Auction Number", auctionNumber],
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
+      ["Total Amount", formatCurrency(totalAmount)],
       ["Winner Username", username],
-      ["Amount Paid", formatCurrency(amount)],
       ["Submission Time", submittedAt],
     ])}
     <p style="margin:16px 0 0;font-size:14px;color:#374151;">Please review and verify this payment in the admin panel.</p>
+    ${buttonHtml(adminPanelUrl, "View Payment in Admin Panel")}
   `;
 
   return {
@@ -128,11 +148,14 @@ export function buildPaymentSubmittedEmail({
       "",
       `Auction: ${auctionTitle}`,
       `Auction No: ${auctionNumber}`,
+      `Winning Bid: ${formatCurrency(winningBid)}`,
+      `Shipping Fee: ${shippingFeeLabel}`,
+      `Total Amount: ${formatCurrency(totalAmount)}`,
       `Winner: ${username}`,
-      `Amount Paid: ${formatCurrency(amount)}`,
       `Submitted At: ${submittedAt}`,
       "",
       "Please review and verify this payment in the admin panel.",
+      `View in admin panel: ${adminPanelUrl}`,
     ].join("\n"),
     html: emailShell({
       heading: "New Payment Received",
@@ -147,7 +170,7 @@ export function buildPaymentVerifiedEmail({
   auctionTitle,
   auctionNumber,
   winningBid,
-  shippingFee,
+  shippingFeeLabel,
   totalAmount,
   isCollection,
   collectionDate,
@@ -159,7 +182,7 @@ export function buildPaymentVerifiedEmail({
   auctionTitle: string;
   auctionNumber: string;
   winningBid: number;
-  shippingFee: number;
+  shippingFeeLabel: string;
   totalAmount: number;
   isCollection: boolean;
   collectionDate?: string | null;
@@ -202,10 +225,7 @@ export function buildPaymentVerifiedEmail({
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, your payment has been received successfully!</p>
     ${summaryTable([
-      ["Auction Title", auctionTitle],
-      ["Auction Number", auctionNumber],
-      ["Winning Bid", formatCurrency(winningBid)],
-      ["Shipping Fee", formatCurrency(shippingFee)],
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Total Amount", formatCurrency(totalAmount)],
     ])}
     ${fulfillmentHtml}
@@ -226,12 +246,18 @@ export function buildPaymentVerifiedEmail({
 export function buildOrderDispatchedEmail({
   username,
   auctionTitle,
+  auctionNumber,
+  winningBid,
+  shippingFeeLabel,
   totalAmount,
   trackingNumber,
   courier,
 }: {
   username: string;
   auctionTitle: string;
+  auctionNumber: string;
+  winningBid: number;
+  shippingFeeLabel: string;
   totalAmount: number;
   trackingNumber: string;
   courier: string;
@@ -243,7 +269,7 @@ export function buildOrderDispatchedEmail({
     <p style="margin:16px 0 4px;font-size:13px;font-weight:600;color:#111827;">Track Your Order</p>
     ${highlightBox("Tracking Number", trackingNumber)}
     ${summaryTable([
-      ["Auction Title", auctionTitle],
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Courier", courier],
       ["Total Amount", formatCurrency(totalAmount)],
     ])}
@@ -272,17 +298,23 @@ export function buildCollectionConfirmedEmail({
   username,
   auctionTitle,
   auctionNumber,
+  winningBid,
+  shippingFeeLabel,
+  totalAmount,
 }: {
   username: string;
   auctionTitle: string;
   auctionNumber: string;
+  winningBid: number;
+  shippingFeeLabel: string;
+  totalAmount: number;
 }) {
   const message = "Your collection has been confirmed! Thank you for shopping with VS GAMEOLOGY!";
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
     ${summaryTable([
-      ["Auction Title", auctionTitle],
-      ["Auction Number", auctionNumber],
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
+      ["Total Amount", formatCurrency(totalAmount)],
     ])}
   `;
 
@@ -291,6 +323,103 @@ export function buildCollectionConfirmedEmail({
     text: [`Dear ${username}, ${message}`].join("\n"),
     html: emailShell({
       heading: "Collection Confirmed!",
+      bodyHtml,
+      footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
+    }),
+  };
+}
+
+export function buildOrderDeliveredEmail({
+  username,
+  auctionTitle,
+  auctionNumber,
+  winningBid,
+  shippingFeeLabel,
+  totalAmount,
+}: {
+  username: string;
+  auctionTitle: string;
+  auctionNumber: string;
+  winningBid: number;
+  shippingFeeLabel: string;
+  totalAmount: number;
+}) {
+  const message =
+    "great news! Your order has been delivered. We hope you enjoy your item. Thank you for shopping with VS GAMEOLOGY!";
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
+    ${summaryTable([
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
+      ["Total Amount", formatCurrency(totalAmount)],
+    ])}
+  `;
+
+  return {
+    subject: `Your Order Has Been Delivered! - ${auctionTitle} - VS GAMEOLOGY`,
+    text: [
+      `Dear ${username}, ${message}`,
+      "",
+      `Auction: ${auctionTitle}`,
+      `Auction No: ${auctionNumber}`,
+      `Winning Bid: ${formatCurrency(winningBid)}`,
+      `Shipping Fee: ${shippingFeeLabel}`,
+      `Total Amount: ${formatCurrency(totalAmount)}`,
+    ].join("\n"),
+    html: emailShell({
+      heading: "Your Order Has Been Delivered!",
+      bodyHtml,
+      footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
+    }),
+  };
+}
+
+export function buildAuctionWonEmail({
+  username,
+  auctionTitle,
+  auctionNumber,
+  winningBid,
+  shippingType,
+  shippingFeeWest,
+  shippingFeeEast,
+  paymentUrl,
+}: {
+  username: string;
+  auctionTitle: string;
+  auctionNumber: string;
+  winningBid: number;
+  shippingType: string | null;
+  shippingFeeWest: number | null;
+  shippingFeeEast: number | null;
+  paymentUrl: string;
+}) {
+  const shippingOptionsLabel =
+    shippingType === "collection"
+      ? "Self Collection only"
+      : `West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)} / East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`;
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, congratulations! You have won the auction for ${escapeHtml(auctionTitle)}. Your winning bid was ${formatCurrency(winningBid)}. Please proceed to complete your payment.</p>
+    ${summaryTable([
+      ["Auction Title", auctionTitle],
+      ["Auction Number", auctionNumber],
+      ["Winning Bid", formatCurrency(winningBid)],
+      ["Shipping Options", shippingOptionsLabel],
+    ])}
+    <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Final total will be calculated after you select your delivery option.</p>
+    ${buttonHtml(paymentUrl, "Complete Payment")}
+  `;
+
+  return {
+    subject: `Congratulations! You Won - ${auctionTitle} - VS GAMEOLOGY`,
+    text: [
+      `Dear ${username}, congratulations! You have won the auction for ${auctionTitle}.`,
+      `Your winning bid was ${formatCurrency(winningBid)}. Please proceed to complete your payment.`,
+      `Shipping Options: ${shippingOptionsLabel}`,
+      "Final total will be calculated after you select your delivery option.",
+      `Complete payment: ${paymentUrl}`,
+    ].join("\n"),
+    html: emailShell({
+      heading: "Congratulations, You Won!",
       bodyHtml,
       footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
     }),

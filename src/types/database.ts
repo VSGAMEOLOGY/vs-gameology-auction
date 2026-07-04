@@ -28,6 +28,7 @@ export type NotificationType =
   | "payment_submitted"
   | "order_dispatched"
   | "collection_confirmed"
+  | "order_delivered"
   | "general";
 export type SuspensionType = "temporary" | "permanent";
 
@@ -155,6 +156,7 @@ export interface Payment {
   courier: string | null;
   dispatched_at: string | null;
   collection_pin: string | null;
+  win_email_sent_at: string | null;
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;

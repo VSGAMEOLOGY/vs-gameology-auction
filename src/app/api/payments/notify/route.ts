@@ -8,10 +8,12 @@ import {
   buildPaymentVerifiedEmail,
   buildOrderDispatchedEmail,
   buildCollectionConfirmedEmail,
+  buildOrderDeliveredEmail,
 } from "@/lib/email-templates";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatShippingFeeLabel } from "@/lib/shipping";
 
-type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected";
+type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected" | "delivered";
 
 type NotifyBody = {
   paymentId: number;
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
 
     const { data: payment, error: paymentError } = await service
       .from("payments")
-      .select("*, auction:auctions(title, auction_number)")
+      .select("*, auction:auctions(title, auction_number), shipping_address:shipping_addresses(state)")
       .eq("id", paymentId)
       .single();
 
@@ -76,6 +78,13 @@ export async function POST(request: Request) {
       console.error("/api/payments/notify: payment not found", paymentId, paymentError);
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
     }
+
+    const isCollection = payment.fulfillment_type === "collection";
+    const shippingFeeLabel = formatShippingFeeLabel({
+      isCollection,
+      shippingFee: payment.shipping_fee,
+      state: payment.shipping_address?.state ?? null,
+    });
 
     const { data: winnerProfile, error: profileError } = await service
       .from("profiles")
@@ -109,9 +118,12 @@ export async function POST(request: Request) {
         const { subject, text, html } = buildPaymentSubmittedEmail({
           auctionTitle,
           auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingFeeLabel,
+          totalAmount: payment.total_amount,
           username,
-          amount: payment.total_amount,
           submittedAt: formatDate(new Date().toISOString()),
+          adminPanelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/payments`,
         });
         const result = await sendEmail({ to: adminEmail, subject, text, html });
         emailSent = result.ok;
@@ -156,9 +168,9 @@ export async function POST(request: Request) {
             auctionTitle,
             auctionNumber: payment.auction?.auction_number ?? "-",
             winningBid: payment.winning_bid,
-            shippingFee: payment.shipping_fee,
+            shippingFeeLabel,
             totalAmount: payment.total_amount,
-            isCollection: payment.fulfillment_type === "collection",
+            isCollection,
             collectionDate: payment.collection_date,
             collectionTimeSlot: payment.collection_time_slot,
             collectionPin: payment.collection_pin,
@@ -197,6 +209,9 @@ export async function POST(request: Request) {
         const { subject, text, html } = buildOrderDispatchedEmail({
           username,
           auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingFeeLabel,
           totalAmount: payment.total_amount,
           trackingNumber: payment.tracking_number,
           courier: payment.courier ?? "-",
@@ -227,6 +242,9 @@ export async function POST(request: Request) {
           username,
           auctionTitle,
           auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingFeeLabel,
+          totalAmount: payment.total_amount,
         });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
@@ -244,6 +262,36 @@ export async function POST(request: Request) {
       });
       if (notifyError) {
         console.error("/api/payments/notify: failed to insert collection confirmed notification", notifyError);
+      }
+      notified = !notifyError;
+    } else if (event === "delivered") {
+      if (!winnerEmail) {
+        console.error("/api/payments/notify: no email on file for winner, skipping delivered email", payment.winner_user_id);
+      } else {
+        const { subject, text, html } = buildOrderDeliveredEmail({
+          username,
+          auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingFeeLabel,
+          totalAmount: payment.total_amount,
+        });
+        const result = await sendEmail({ to: winnerEmail, subject, text, html });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send delivered email", result.error);
+        }
+      }
+
+      const { error: notifyError } = await service.from("notifications").insert({
+        user_id: payment.winner_user_id,
+        notification_type: "order_delivered",
+        title: "Order Delivered",
+        message: `Your order for ${auctionTitle} has been delivered. We hope you enjoy your item!`,
+        related_auction_id: payment.auction_id,
+      });
+      if (notifyError) {
+        console.error("/api/payments/notify: failed to insert delivered notification", notifyError);
       }
       notified = !notifyError;
     }

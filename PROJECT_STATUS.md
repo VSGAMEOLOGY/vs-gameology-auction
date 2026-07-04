@@ -20,6 +20,25 @@
 
 ## Session Log
 
+### Day 6 — 4 July 2026 (later still)
+
+**Added:**
+- Delivered-order emails: admin's manual "Mark as Delivered" and the new `/api/cron/deliveries` auto-deliver endpoint both now send a "Your Order Has Been Delivered!" email + website notification (the raw `pg_cron` job from 023 could update the row but not send mail, so it's unscheduled in 024 in favor of this Vercel Cron endpoint)
+- Auction-winner email: `/api/cron/auctions` now emails winners "Congratulations! You Won" (with shipping-option ranges, since delivery method isn't chosen yet) alongside the existing website notification; tracked via new `payments.win_email_sent_at` so it only fires once per payment
+- Admin panel link button added to the "New Payment Submitted" admin email
+- All order-summary emails (submitted/verified/dispatched/collected/delivered) now consistently show Auction Title, Auction Number, Winning Bid, a zone-aware Shipping Fee (West/East Malaysia or Self Collection, read from `payments.shipping_fee` — never hardcoded), and Total Amount
+- Auction number added to the post-submission "Order Summary" card on `/payments/[auctionId]` (was already on the pre-submission collapsed summary)
+
+**Fixed:**
+- Admin "Confirm Collection" now removes the row from view and switches to the Collected tab immediately, instead of leaving it stuck under Verified until a manual refresh
+
+**Migrations applied:**
+- 024: `payments.win_email_sent_at` column (backfilled so existing payments don't retroactively get a "you won" email), unschedules the 023 `auto-mark-delivered` pg_cron job
+
+**Note:** `/api/cron/auctions` itself doesn't appear to be wired up to any scheduler in this repo (`vercel.json` had no `crons` entry before this session, and there's no GitHub Action either) — only `/api/cron/deliveries` was added to `vercel.json` here. Worth checking whether auctions are actually auto-ending in production.
+
+---
+
 ### Day 5 — 4 July 2026 (later)
 
 **Added:**

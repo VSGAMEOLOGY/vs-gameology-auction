@@ -13,10 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateOnly, cn } from "@/lib/utils";
 import { getCourierTrackingUrl } from "@/lib/couriers";
+import { resolveShippingZone as resolveZone } from "@/lib/shipping";
 import { ChevronDown, UploadCloud, CheckCircle, XCircle, Truck } from "lucide-react";
 import type { Payment, Profile, ShippingAddress } from "@/types/database";
 
-const EAST_MALAYSIA_STATES = ["Sabah", "Sarawak", "Labuan"];
 const WHATSAPP_NUMBER = "60139681228";
 const EAST_UNAVAILABLE_NOTICE =
   "This item does not ship to East Malaysia. Please choose Self Collection or contact us on WhatsApp to arrange.";
@@ -32,10 +32,6 @@ const TIME_SLOTS = [
 
 const PICKUP_ADDRESS =
   "NO 92-A (TINGKAT 1), JALAN BPU 1, BANDAR PUCHONG UTAMA, 47100 PUCHONG, SELANGOR";
-
-function resolveZone(state: string): "east" | "west" {
-  return EAST_MALAYSIA_STATES.includes(state) ? "east" : "west";
-}
 
 const emptyAddress = {
   label: "Home",
@@ -662,6 +658,10 @@ export default function PaymentDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Item</span>
                     <span className="font-medium">{auction?.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Auction Number</span>
+                    <span className="font-medium">{auction?.auction_number}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Winning Bid</span>
