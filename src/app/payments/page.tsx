@@ -12,6 +12,8 @@ const statusVariant: Record<string, "default" | "success" | "warning" | "danger"
   rejected: "danger",
   refunded: "default",
   collected: "success",
+  dispatched: "info",
+  delivered: "success",
 };
 
 export default async function PaymentsPage() {

@@ -223,7 +223,11 @@ export async function POST(request: Request) {
       if (!winnerEmail) {
         console.error("/api/payments/notify: no email on file for winner, skipping collection confirmed email", payment.winner_user_id);
       } else {
-        const { subject, text, html } = buildCollectionConfirmedEmail({ username, auctionTitle });
+        const { subject, text, html } = buildCollectionConfirmedEmail({
+          username,
+          auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+        });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
         if (!result.ok) {

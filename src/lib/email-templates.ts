@@ -271,14 +271,19 @@ export function buildOrderDispatchedEmail({
 export function buildCollectionConfirmedEmail({
   username,
   auctionTitle,
+  auctionNumber,
 }: {
   username: string;
   auctionTitle: string;
+  auctionNumber: string;
 }) {
   const message = "Your collection has been confirmed! Thank you for shopping with VS GAMEOLOGY!";
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
-    ${summaryTable([["Auction Title", auctionTitle]])}
+    ${summaryTable([
+      ["Auction Title", auctionTitle],
+      ["Auction Number", auctionNumber],
+    ])}
   `;
 
   return {

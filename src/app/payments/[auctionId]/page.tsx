@@ -323,9 +323,13 @@ export default function PaymentDetailPage() {
             <CardTitle>{payment.auction?.title}</CardTitle>
             <Badge
               variant={
-                payment.payment_status === "verified" || payment.payment_status === "collected"
+                payment.payment_status === "verified" ||
+                payment.payment_status === "collected" ||
+                payment.payment_status === "delivered"
                   ? "success"
-                  : "warning"
+                  : payment.payment_status === "dispatched"
+                    ? "info"
+                    : "warning"
               }
             >
               {payment.payment_status}
@@ -621,16 +625,30 @@ export default function PaymentDetailPage() {
               )}
               <div>
                 <h2 className="text-xl font-bold text-gray-900">
-                  {isRejected ? "Payment Rejected" : `Thank You ${profile?.username ?? ""}!`}
+                  {isRejected
+                    ? "Payment Rejected"
+                    : payment.payment_status === "delivered"
+                      ? "Your Order Has Been Delivered - Thank you!"
+                      : payment.payment_status === "dispatched"
+                        ? "Your Order Has Been Dispatched"
+                        : payment.payment_status === "collected"
+                          ? `Thank You ${profile?.username ?? ""}!`
+                          : payment.payment_status === "verified"
+                            ? "Payment Verified - Preparing Your Item"
+                            : `Thank You ${profile?.username ?? ""}!`}
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
                   {isRejected
                     ? "Your payment could not be verified."
                     : payment.payment_status === "collected"
                       ? "Your item has been collected. Thank you for shopping with VS GAMEOLOGY!"
-                      : payment.payment_status === "verified"
-                        ? "Your payment has been verified successfully! Thank you!"
-                        : "Your payment submission has been received."}
+                      : payment.payment_status === "delivered"
+                        ? "Thank you for shopping with VS GAMEOLOGY!"
+                        : payment.payment_status === "dispatched"
+                          ? "Track your delivery using the details below."
+                          : payment.payment_status === "verified"
+                            ? "We're getting your item ready for delivery."
+                            : "Your payment submission has been received."}
                 </p>
               </div>
 

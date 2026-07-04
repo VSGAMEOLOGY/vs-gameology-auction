@@ -20,6 +20,20 @@
 
 ## Session Log
 
+### Day 5 — 4 July 2026 (later)
+
+**Added:**
+- Full shipping lifecycle: saving a tracking number on a verified shipping payment now auto-transitions it to `dispatched` (stamping `dispatched_at`); admin can manually "Mark as Delivered", and revert a delivered order back to `dispatched` in case of dispute
+- A daily `pg_cron` job auto-marks `dispatched` shipping payments as `delivered` 14 days after `dispatched_at`
+- Admin payments page tabs reordered/expanded: All | Submitted | Pending | Verified | Dispatched | Delivered | Collected | Rejected
+- Customer payment page shows tailored copy per status ("Payment Verified - Preparing Your Item", "Your Order Has Been Dispatched", "Your Order Has Been Delivered - Thank you!")
+- Collection-confirmed email now includes the auction number
+
+**Migrations applied:**
+- 023: `dispatched_at` column, `'dispatched'`/`'delivered'` payment status values, `auto-mark-delivered` pg_cron job
+
+---
+
 ### Day 4 — 4 July 2026
 
 **Added:**

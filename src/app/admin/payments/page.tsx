@@ -56,6 +56,7 @@ export default function AdminPaymentsPage() {
   const [courierDrafts, setCourierDrafts] = useState<Record<number, string>>({});
   const [collectionPinDrafts, setCollectionPinDrafts] = useState<Record<number, string>>({});
   const [collectionSaving, setCollectionSaving] = useState<number | null>(null);
+  const [deliverySaving, setDeliverySaving] = useState<number | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -134,9 +135,10 @@ export default function AdminPaymentsPage() {
       return;
     }
 
+    const completedStatuses = ["verified", "collected", "dispatched", "delivered"];
     const counts: WinCounts = { completed: 0, pendingVerification: 0, unpaid: 0 };
     for (const row of data ?? []) {
-      if (row.payment_status === "verified" || row.payment_status === "collected") counts.completed++;
+      if (completedStatuses.includes(row.payment_status)) counts.completed++;
       else if (row.payment_status === "submitted") counts.pendingVerification++;
       else if (row.payment_status === "pending") counts.unpaid++;
     }
@@ -218,9 +220,15 @@ export default function AdminPaymentsPage() {
     setTrackingSaving(payment.id);
     setActionError("");
 
+    const dispatchedAt = new Date().toISOString();
     const { error: updateError } = await supabase
       .from("payments")
-      .update({ tracking_number: trackingNumber, courier })
+      .update({
+        tracking_number: trackingNumber,
+        courier,
+        payment_status: "dispatched",
+        dispatched_at: dispatchedAt,
+      })
       .eq("id", payment.id);
 
     if (updateError) {
@@ -229,11 +237,76 @@ export default function AdminPaymentsPage() {
       return;
     }
 
-    setPayments((prev) =>
-      prev.map((p) => (p.id === payment.id ? { ...p, tracking_number: trackingNumber, courier } : p))
-    );
     await notify(payment.id, "dispatched");
+
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    setFilter("dispatched");
     setTrackingSaving(null);
+  }
+
+  async function markDelivered(payment: PaymentRow) {
+    setActionError("");
+    setDeliverySaving(payment.id);
+
+    const { error: updateError } = await supabase
+      .from("payments")
+      .update({ payment_status: "delivered" })
+      .eq("id", payment.id);
+
+    if (updateError) {
+      setActionError(`Failed to mark as delivered: ${updateError.message}`);
+      setDeliverySaving(null);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("admin_activity_logs").insert({
+        admin_id: user.id,
+        action: "mark_delivered",
+        entity_type: "payments",
+        entity_id: payment.id.toString(),
+      });
+    }
+
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    setFilter("delivered");
+    setDeliverySaving(null);
+  }
+
+  async function revertToDispatched(payment: PaymentRow) {
+    setActionError("");
+    setDeliverySaving(payment.id);
+
+    const dispatchedAt = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("payments")
+      .update({ payment_status: "dispatched", dispatched_at: dispatchedAt })
+      .eq("id", payment.id);
+
+    if (updateError) {
+      setActionError(`Failed to revert to dispatched: ${updateError.message}`);
+      setDeliverySaving(null);
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("admin_activity_logs").insert({
+        admin_id: user.id,
+        action: "revert_to_dispatched",
+        entity_type: "payments",
+        entity_id: payment.id.toString(),
+      });
+    }
+
+    setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+    setFilter("dispatched");
+    setDeliverySaving(null);
   }
 
   async function confirmCollection(payment: PaymentRow) {
@@ -279,7 +352,16 @@ export default function AdminPaymentsPage() {
     setCollectionSaving(null);
   }
 
-  const filters = ["all", "submitted", "pending", "verified", "collected", "rejected"];
+  const filters = [
+    "all",
+    "submitted",
+    "pending",
+    "verified",
+    "dispatched",
+    "delivered",
+    "collected",
+    "rejected",
+  ];
 
   return (
     <div>
@@ -314,6 +396,8 @@ export default function AdminPaymentsPage() {
             const isCollection = payment.fulfillment_type === "collection";
             const canTrack = payment.payment_status === "verified" && !isCollection;
             const canConfirmCollection = isCollection && payment.payment_status === "verified";
+            const canMarkDelivered = payment.payment_status === "dispatched" && !isCollection;
+            const canRevertToDispatched = payment.payment_status === "delivered" && !isCollection;
             const draft = trackingDrafts[payment.id] ?? "";
             const courierDraft = courierDrafts[payment.id] ?? "";
             const pinDraft = collectionPinDrafts[payment.id] ?? "";
@@ -556,14 +640,44 @@ export default function AdminPaymentsPage() {
                           </Button>
                         </div>
                       )}
+
+                      {canMarkDelivered && (
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={deliverySaving === payment.id}
+                            onClick={() => markDelivered(payment)}
+                          >
+                            Mark as Delivered
+                          </Button>
+                        </div>
+                      )}
+
+                      {canRevertToDispatched && (
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={deliverySaving === payment.id}
+                            onClick={() => revertToDispatched(payment)}
+                          >
+                            Revert to Dispatched
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={
-                          payment.payment_status === "verified" || payment.payment_status === "collected"
+                          payment.payment_status === "verified" ||
+                          payment.payment_status === "collected" ||
+                          payment.payment_status === "delivered"
                             ? "success"
-                            : "warning"
+                            : payment.payment_status === "dispatched"
+                              ? "info"
+                              : "warning"
                         }
                       >
                         {payment.payment_status}
