@@ -1,7 +1,7 @@
 export const COURIERS = [
-  { name: "SPX Express", trackingUrlPrefix: "https://spx.my/order/track?trackingNo=" },
+  { name: "SPX Express", trackingUrlPrefix: "https://spx.com.my/track?tracking_no=" },
   { name: "NinjaVan", trackingUrlPrefix: "https://www.ninjavan.co/en-my/tracking?id=" },
-  { name: "LineClear", trackingUrlPrefix: "https://www.lineclear.com/tracking?tracking_no=" },
+  { name: "LineClear", trackingUrlPrefix: "https://lineclearexpress.com/tracker?tracking_no=" },
 ] as const;
 
 export function getCourierTrackingUrl(
