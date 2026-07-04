@@ -20,6 +20,19 @@
 
 ## Session Log
 
+### Day 4 — 4 July 2026
+
+**Added:**
+- Email header branding fixed: "VS GAMEOLOGY" now fully blue (`#3B5BDB`), hammer emoji swapped for an inline SVG gavel matching the navbar icon
+- Courier selection (SPX Express / NinjaVan / LineClear) added alongside tracking number; customer payment page and dispatched email now show the courier and a clickable "Track Your Order" link built from the correct per-courier URL
+- Auction number now shown on the customer `/payments` list and in the payment page's order summary
+- Self-collection PIN verification: a random 6-digit PIN is generated when admin verifies a self-collection order, shown to the customer (payment page + verified email), and admin confirms collection by entering it — moves payment status to `collected` and sends a final "collection confirmed" email/notification
+
+**Migrations applied:**
+- 022: `courier` + `collection_pin` columns on `payments`, plus `'collected'` payment status value
+
+---
+
 ### Day 3 — 3 July 2026 (tag: `v0.8-suspension-complete`)
 
 **Fixed — suspension enforcement now fully working end-to-end:**

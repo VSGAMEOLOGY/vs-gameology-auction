@@ -7,10 +7,11 @@ import {
   buildPaymentSubmittedEmail,
   buildPaymentVerifiedEmail,
   buildOrderDispatchedEmail,
+  buildCollectionConfirmedEmail,
 } from "@/lib/email-templates";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-type NotifyEvent = "submitted" | "reviewed" | "dispatched";
+type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected";
 
 type NotifyBody = {
   paymentId: number;
@@ -160,6 +161,7 @@ export async function POST(request: Request) {
             isCollection: payment.fulfillment_type === "collection",
             collectionDate: payment.collection_date,
             collectionTimeSlot: payment.collection_time_slot,
+            collectionPin: payment.collection_pin,
             paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
           });
           const result = await sendEmail({ to: winnerEmail, subject, text, html });
@@ -197,6 +199,7 @@ export async function POST(request: Request) {
           auctionTitle,
           totalAmount: payment.total_amount,
           trackingNumber: payment.tracking_number,
+          courier: payment.courier ?? "-",
         });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
@@ -209,11 +212,34 @@ export async function POST(request: Request) {
         user_id: payment.winner_user_id,
         notification_type: "order_dispatched",
         title: "Order Dispatched",
-        message: `Your order has been dispatched! Tracking number: ${payment.tracking_number}`,
+        message: `Your order has been dispatched via ${payment.courier ?? "our courier"}! Tracking number: ${payment.tracking_number}`,
         related_auction_id: payment.auction_id,
       });
       if (notifyError) {
         console.error("/api/payments/notify: failed to insert dispatched notification", notifyError);
+      }
+      notified = !notifyError;
+    } else if (event === "collected") {
+      if (!winnerEmail) {
+        console.error("/api/payments/notify: no email on file for winner, skipping collection confirmed email", payment.winner_user_id);
+      } else {
+        const { subject, text, html } = buildCollectionConfirmedEmail({ username, auctionTitle });
+        const result = await sendEmail({ to: winnerEmail, subject, text, html });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send collection confirmed email", result.error);
+        }
+      }
+
+      const { error: notifyError } = await service.from("notifications").insert({
+        user_id: payment.winner_user_id,
+        notification_type: "collection_confirmed",
+        title: "Collection Confirmed",
+        message: "Your collection has been confirmed! Thank you for shopping with VS GAMEOLOGY!",
+        related_auction_id: payment.auction_id,
+      });
+      if (notifyError) {
+        console.error("/api/payments/notify: failed to insert collection confirmed notification", notifyError);
       }
       notified = !notifyError;
     }

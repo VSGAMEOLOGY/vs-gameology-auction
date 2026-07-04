@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { COURIERS } from "@/lib/couriers";
 import { ChevronDown } from "lucide-react";
 import type { Payment, ShippingAddress } from "@/types/database";
 
@@ -51,6 +53,9 @@ export default function AdminPaymentsPage() {
   const [winCountsError, setWinCountsError] = useState<Record<string, string>>({});
   const [trackingDrafts, setTrackingDrafts] = useState<Record<number, string>>({});
   const [trackingSaving, setTrackingSaving] = useState<number | null>(null);
+  const [courierDrafts, setCourierDrafts] = useState<Record<number, string>>({});
+  const [collectionPinDrafts, setCollectionPinDrafts] = useState<Record<number, string>>({});
+  const [collectionSaving, setCollectionSaving] = useState<number | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -72,6 +77,9 @@ export default function AdminPaymentsPage() {
         setPayments(data as PaymentRow[]);
         setTrackingDrafts(
           Object.fromEntries((data as PaymentRow[]).map((p) => [p.id, p.tracking_number ?? ""]))
+        );
+        setCourierDrafts(
+          Object.fromEntries((data as PaymentRow[]).map((p) => [p.id, p.courier ?? ""]))
         );
       }
       setLoading(false);
@@ -128,7 +136,7 @@ export default function AdminPaymentsPage() {
 
     const counts: WinCounts = { completed: 0, pendingVerification: 0, unpaid: 0 };
     for (const row of data ?? []) {
-      if (row.payment_status === "verified") counts.completed++;
+      if (row.payment_status === "verified" || row.payment_status === "collected") counts.completed++;
       else if (row.payment_status === "submitted") counts.pendingVerification++;
       else if (row.payment_status === "pending") counts.unpaid++;
     }
@@ -144,7 +152,7 @@ export default function AdminPaymentsPage() {
     });
   }
 
-  async function notify(paymentId: number, event: "reviewed" | "dispatched", approved?: boolean) {
+  async function notify(paymentId: number, event: "reviewed" | "dispatched" | "collected", approved?: boolean) {
     try {
       const res = await fetch("/api/payments/notify", {
         method: "POST",
@@ -165,12 +173,17 @@ export default function AdminPaymentsPage() {
     if (!user) return;
 
     const payment_status = approved ? "verified" : "rejected";
+    const isCollectionOrder = payment.fulfillment_type === "collection";
+    const collectionPin =
+      approved && isCollectionOrder ? String(Math.floor(100000 + Math.random() * 900000)) : undefined;
+
     const { error: updateError } = await supabase
       .from("payments")
       .update({
         payment_status,
         verified_by: user.id,
         verified_at: new Date().toISOString(),
+        ...(collectionPin ? { collection_pin: collectionPin } : {}),
       })
       .eq("id", payment.id);
 
@@ -194,14 +207,20 @@ export default function AdminPaymentsPage() {
 
   async function saveTracking(payment: PaymentRow) {
     const trackingNumber = trackingDrafts[payment.id]?.trim() ?? "";
-    if (!trackingNumber || trackingNumber === (payment.tracking_number ?? "")) return;
+    const courier = courierDrafts[payment.id]?.trim() ?? "";
+    if (
+      !trackingNumber ||
+      !courier ||
+      (trackingNumber === (payment.tracking_number ?? "") && courier === (payment.courier ?? ""))
+    )
+      return;
 
     setTrackingSaving(payment.id);
     setActionError("");
 
     const { error: updateError } = await supabase
       .from("payments")
-      .update({ tracking_number: trackingNumber })
+      .update({ tracking_number: trackingNumber, courier })
       .eq("id", payment.id);
 
     if (updateError) {
@@ -211,13 +230,56 @@ export default function AdminPaymentsPage() {
     }
 
     setPayments((prev) =>
-      prev.map((p) => (p.id === payment.id ? { ...p, tracking_number: trackingNumber } : p))
+      prev.map((p) => (p.id === payment.id ? { ...p, tracking_number: trackingNumber, courier } : p))
     );
     await notify(payment.id, "dispatched");
     setTrackingSaving(null);
   }
 
-  const filters = ["all", "submitted", "pending", "verified", "rejected"];
+  async function confirmCollection(payment: PaymentRow) {
+    setActionError("");
+    const pin = collectionPinDrafts[payment.id]?.trim() ?? "";
+    if (!pin) return;
+
+    if (pin !== payment.collection_pin) {
+      setActionError("Incorrect PIN. Please check and try again.");
+      return;
+    }
+
+    setCollectionSaving(payment.id);
+
+    const { error: updateError } = await supabase
+      .from("payments")
+      .update({ payment_status: "collected" })
+      .eq("id", payment.id);
+
+    if (updateError) {
+      setActionError(`Failed to confirm collection: ${updateError.message}`);
+      setCollectionSaving(null);
+      return;
+    }
+
+    await notify(payment.id, "collected");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("admin_activity_logs").insert({
+        admin_id: user.id,
+        action: "confirm_collection",
+        entity_type: "payments",
+        entity_id: payment.id.toString(),
+      });
+    }
+
+    setPayments((prev) =>
+      prev.map((p) => (p.id === payment.id ? { ...p, payment_status: "collected" } : p))
+    );
+    setCollectionSaving(null);
+  }
+
+  const filters = ["all", "submitted", "pending", "verified", "collected", "rejected"];
 
   return (
     <div>
@@ -251,7 +313,10 @@ export default function AdminPaymentsPage() {
             const deliveryOpen = openDropdown?.paymentId === payment.id && openDropdown?.type === "delivery";
             const isCollection = payment.fulfillment_type === "collection";
             const canTrack = payment.payment_status === "verified" && !isCollection;
+            const canConfirmCollection = isCollection && payment.payment_status === "verified";
             const draft = trackingDrafts[payment.id] ?? "";
+            const courierDraft = courierDrafts[payment.id] ?? "";
+            const pinDraft = collectionPinDrafts[payment.id] ?? "";
 
             return (
               <Card key={payment.id}>
@@ -384,6 +449,12 @@ export default function AdminPaymentsPage() {
                                   {payment.collection_remarks}
                                 </p>
                               )}
+                              {payment.collection_pin && (
+                                <p>
+                                  <span className="text-gray-500">Collection PIN: </span>
+                                  {payment.collection_pin}
+                                </p>
+                              )}
                             </>
                           ) : payment.shipping_address ? (
                             <>
@@ -425,30 +496,76 @@ export default function AdminPaymentsPage() {
                       )}
 
                       {canTrack && (
+                        <div className="mt-3 space-y-2">
+                          <Select
+                            value={courierDraft}
+                            onChange={(e) =>
+                              setCourierDrafts((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                            }
+                            options={[
+                              { value: "", label: "Select courier" },
+                              ...COURIERS.map((c) => ({ value: c.name, label: c.name })),
+                            ]}
+                            className="max-w-xs"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={draft}
+                              onChange={(e) =>
+                                setTrackingDrafts((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                              }
+                              placeholder="Tracking number"
+                              className="max-w-xs"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              loading={trackingSaving === payment.id}
+                              disabled={
+                                !draft.trim() ||
+                                !courierDraft ||
+                                (draft.trim() === (payment.tracking_number ?? "") &&
+                                  courierDraft === (payment.courier ?? ""))
+                              }
+                              onClick={() => saveTracking(payment)}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {canConfirmCollection && (
                         <div className="mt-3 flex items-center gap-2">
                           <Input
-                            value={draft}
+                            value={pinDraft}
                             onChange={(e) =>
-                              setTrackingDrafts((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                              setCollectionPinDrafts((prev) => ({ ...prev, [payment.id]: e.target.value }))
                             }
-                            placeholder="Tracking number"
+                            placeholder="Enter PIN"
                             className="max-w-xs"
                           />
                           <Button
                             size="sm"
                             variant="outline"
-                            loading={trackingSaving === payment.id}
-                            disabled={!draft.trim() || draft.trim() === (payment.tracking_number ?? "")}
-                            onClick={() => saveTracking(payment)}
+                            loading={collectionSaving === payment.id}
+                            disabled={!pinDraft.trim()}
+                            onClick={() => confirmCollection(payment)}
                           >
-                            Save
+                            Confirm Collection
                           </Button>
                         </div>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Badge variant={payment.payment_status === "verified" ? "success" : "warning"}>
+                      <Badge
+                        variant={
+                          payment.payment_status === "verified" || payment.payment_status === "collected"
+                            ? "success"
+                            : "warning"
+                        }
+                      >
                         {payment.payment_status}
                       </Badge>
                       {payment.payment_status === "submitted" && (

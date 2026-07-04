@@ -11,6 +11,7 @@ const statusVariant: Record<string, "default" | "success" | "warning" | "danger"
   verified: "success",
   rejected: "danger",
   refunded: "default",
+  collected: "success",
 };
 
 export default async function PaymentsPage() {
@@ -19,7 +20,7 @@ export default async function PaymentsPage() {
 
   const { data: payments } = await supabase
     .from("payments")
-    .select("*, auction:auctions(title, shipping_type)")
+    .select("*, auction:auctions(title, shipping_type, auction_number)")
     .eq("winner_user_id", user!.id)
     .order("created_at", { ascending: false });
 
@@ -39,6 +40,9 @@ export default async function PaymentsPage() {
                   <div>
                     <p className="font-medium text-gray-900">
                       {payment.auction?.title || "Auction"}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Auction #{payment.auction?.auction_number ?? "—"}
                     </p>
                     <p className="text-sm text-gray-500">
                       {formatDate(payment.created_at)} &middot;{" "}

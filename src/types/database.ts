@@ -9,7 +9,7 @@ export type Json =
 export type UserRole = "user" | "admin";
 export type AuctionStatus = "draft" | "scheduled" | "active" | "ended" | "cancelled";
 export type FulfillmentType = "shipping" | "collection";
-export type PaymentStatus = "pending" | "submitted" | "verified" | "rejected" | "refunded";
+export type PaymentStatus = "pending" | "submitted" | "verified" | "rejected" | "refunded" | "collected";
 export type NotificationType =
   | "bid_outbid"
   | "auction_won"
@@ -19,6 +19,7 @@ export type NotificationType =
   | "account_suspended"
   | "payment_submitted"
   | "order_dispatched"
+  | "collection_confirmed"
   | "general";
 export type SuspensionType = "temporary" | "permanent";
 
@@ -143,6 +144,8 @@ export interface Payment {
   collection_time_slot: string | null;
   collection_remarks: string | null;
   tracking_number: string | null;
+  courier: string | null;
+  collection_pin: string | null;
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;

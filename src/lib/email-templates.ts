@@ -1,8 +1,17 @@
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { getCourierTrackingUrl } from "@/lib/couriers";
 
 const BRAND_BLUE = "#3B5BDB";
 const PICKUP_ADDRESS =
   "NO 92-A (TINGKAT 1), JALAN BPU 1, BANDAR PUCHONG UTAMA, 47100 PUCHONG, SELANGOR";
+
+const GAVEL_ICON_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${BRAND_BLUE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;">
+  <path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/>
+  <path d="m16 16 6-6"/>
+  <path d="m8 8 6-6"/>
+  <path d="m9 7 8 8"/>
+  <path d="m21 11-8-8"/>
+</svg>`;
 
 function escapeHtml(value: string) {
   return value
@@ -30,7 +39,7 @@ function emailShell({
           <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;">
             <tr>
               <td style="padding:24px 32px;border-bottom:1px solid #e5e7eb;">
-                <span style="font-size:20px;font-weight:700;color:${BRAND_BLUE};">&#128296; VS <span style="color:#111827;">GAMEOLOGY</span></span>
+                <span style="font-size:20px;font-weight:700;color:${BRAND_BLUE};">${GAVEL_ICON_SVG}VS GAMEOLOGY</span>
               </td>
             </tr>
             <tr>
@@ -76,12 +85,12 @@ function buttonHtml(href: string, label: string) {
   </table>`;
 }
 
-function trackingBox(trackingNumber: string) {
+function highlightBox(label: string, value: string) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background-color:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;">
     <tr>
       <td style="padding:16px;text-align:center;">
-        <p style="margin:0 0 4px;font-size:12px;color:#4338ca;text-transform:uppercase;letter-spacing:0.05em;">Tracking Number</p>
-        <p style="margin:0;font-size:20px;font-weight:700;color:#3730a3;letter-spacing:0.05em;">${escapeHtml(trackingNumber)}</p>
+        <p style="margin:0 0 4px;font-size:12px;color:#4338ca;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(label)}</p>
+        <p style="margin:0;font-size:20px;font-weight:700;color:#3730a3;letter-spacing:0.05em;">${escapeHtml(value)}</p>
       </td>
     </tr>
   </table>`;
@@ -143,6 +152,7 @@ export function buildPaymentVerifiedEmail({
   isCollection,
   collectionDate,
   collectionTimeSlot,
+  collectionPin,
   paymentUrl,
 }: {
   username: string;
@@ -154,6 +164,7 @@ export function buildPaymentVerifiedEmail({
   isCollection: boolean;
   collectionDate?: string | null;
   collectionTimeSlot?: string | null;
+  collectionPin?: string | null;
   paymentUrl: string;
 }) {
   const collectionDateLabel = collectionDate ? formatDateOnly(collectionDate) : "-";
@@ -168,6 +179,7 @@ export function buildPaymentVerifiedEmail({
       `Pickup Location: ${PICKUP_ADDRESS}.`,
       `Collection Date: ${collectionDateLabel}.`,
       `Time Slot: ${timeSlotLabel}.`,
+      ...(collectionPin ? [`Your Collection PIN: ${collectionPin}.`] : []),
       "Please bring along this email as reference. See you soon!"
     );
     fulfillmentHtml = `
@@ -177,6 +189,7 @@ export function buildPaymentVerifiedEmail({
         ["Collection Date", collectionDateLabel],
         ["Time Slot", timeSlotLabel],
       ])}
+      ${collectionPin ? highlightBox("Your Collection PIN", collectionPin) : ""}
       <p style="margin:16px 0 0;font-size:14px;color:#374151;">Please bring along this email as reference. See you soon!</p>
     `;
   } else {
@@ -215,20 +228,26 @@ export function buildOrderDispatchedEmail({
   auctionTitle,
   totalAmount,
   trackingNumber,
+  courier,
 }: {
   username: string;
   auctionTitle: string;
   totalAmount: number;
   trackingNumber: string;
+  courier: string;
 }) {
+  const trackingUrl = getCourierTrackingUrl(courier, trackingNumber);
+
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, great news! Your order has been dispatched.</p>
     <p style="margin:16px 0 4px;font-size:13px;font-weight:600;color:#111827;">Track Your Order</p>
-    ${trackingBox(trackingNumber)}
+    ${highlightBox("Tracking Number", trackingNumber)}
     ${summaryTable([
       ["Auction Title", auctionTitle],
+      ["Courier", courier],
       ["Total Amount", formatCurrency(totalAmount)],
     ])}
+    ${trackingUrl ? buttonHtml(trackingUrl, "Track Your Order") : ""}
     <p style="margin:16px 0 0;font-size:14px;color:#374151;">Please use this tracking number to track your delivery. Thank you for shopping with VS GAMEOLOGY!</p>
   `;
 
@@ -236,12 +255,37 @@ export function buildOrderDispatchedEmail({
     subject: `Your Order Has Been Dispatched! - ${auctionTitle} - VS GAMEOLOGY`,
     text: [
       `Dear ${username}, great news! Your order has been dispatched.`,
+      `Courier: ${courier}.`,
       `Your tracking number is: ${trackingNumber}.`,
-      "Please use this to track your delivery.",
+      ...(trackingUrl ? [`Track your order: ${trackingUrl}`] : []),
       "Thank you for shopping with VS GAMEOLOGY!",
     ].join("\n"),
     html: emailShell({
       heading: "Your Order Is On Its Way!",
+      bodyHtml,
+      footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
+    }),
+  };
+}
+
+export function buildCollectionConfirmedEmail({
+  username,
+  auctionTitle,
+}: {
+  username: string;
+  auctionTitle: string;
+}) {
+  const message = "Your collection has been confirmed! Thank you for shopping with VS GAMEOLOGY!";
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
+    ${summaryTable([["Auction Title", auctionTitle]])}
+  `;
+
+  return {
+    subject: `Collection Confirmed - ${auctionTitle} - VS GAMEOLOGY`,
+    text: [`Dear ${username}, ${message}`].join("\n"),
+    html: emailShell({
+      heading: "Collection Confirmed!",
       bodyHtml,
       footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
     }),

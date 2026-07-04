@@ -12,6 +12,7 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateOnly, cn } from "@/lib/utils";
+import { getCourierTrackingUrl } from "@/lib/couriers";
 import { ChevronDown, UploadCloud, CheckCircle, XCircle, Truck } from "lucide-react";
 import type { Payment, Profile, ShippingAddress } from "@/types/database";
 
@@ -310,6 +311,7 @@ export default function PaymentDetailPage() {
     "Thank you!",
   ].join("\n");
   const eastMalaysiaWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(eastMalaysiaWhatsappMessage)}`;
+  const trackingUrl = getCourierTrackingUrl(payment.courier, payment.tracking_number);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -319,7 +321,13 @@ export default function PaymentDetailPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>{payment.auction?.title}</CardTitle>
-            <Badge variant={payment.payment_status === "verified" ? "success" : "warning"}>
+            <Badge
+              variant={
+                payment.payment_status === "verified" || payment.payment_status === "collected"
+                  ? "success"
+                  : "warning"
+              }
+            >
               {payment.payment_status}
             </Badge>
           </div>
@@ -370,6 +378,10 @@ export default function PaymentDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Item</span>
                     <span className="font-medium">{auction?.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Auction Number</span>
+                    <span className="font-medium">{auction?.auction_number}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Shipping Fee</span>
@@ -614,9 +626,11 @@ export default function PaymentDetailPage() {
                 <p className="mt-1 text-sm text-gray-600">
                   {isRejected
                     ? "Your payment could not be verified."
-                    : payment.payment_status === "verified"
-                      ? "Your payment has been verified successfully! Thank you!"
-                      : "Your payment submission has been received."}
+                    : payment.payment_status === "collected"
+                      ? "Your item has been collected. Thank you for shopping with VS GAMEOLOGY!"
+                      : payment.payment_status === "verified"
+                        ? "Your payment has been verified successfully! Thank you!"
+                        : "Your payment submission has been received."}
                 </p>
               </div>
 
@@ -668,6 +682,17 @@ export default function PaymentDetailPage() {
                       <p>Time Slot: {payment.collection_time_slot ?? "-"}</p>
                       {payment.collection_remarks && <p>Remarks: {payment.collection_remarks}</p>}
                     </div>
+                    {payment.collection_pin && (
+                      <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-center">
+                        <p className="text-xs font-medium uppercase tracking-wide text-brand-600">
+                          Your Collection PIN
+                        </p>
+                        <p className="mt-1 text-2xl font-bold text-brand-700">{payment.collection_pin}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Show this PIN to our staff when collecting your item.
+                        </p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -697,13 +722,26 @@ export default function PaymentDetailPage() {
                 Billing method: <span className="font-medium text-gray-700">Bank Transfer</span>
               </p>
 
-              {payment.tracking_number && (
+              {payment.tracking_number && payment.fulfillment_type !== "collection" && (
                 <div className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-left">
                   <div className="flex items-center gap-2 text-brand-700">
                     <Truck className="h-5 w-5" />
                     <p className="font-semibold">Tracking Number</p>
                   </div>
                   <p className="mt-1 text-lg font-bold text-brand-700">{payment.tracking_number}</p>
+                  {payment.courier && (
+                    <p className="mt-1 text-sm text-brand-600">Courier: {payment.courier}</p>
+                  )}
+                  {trackingUrl && (
+                    <a
+                      href={trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+                    >
+                      Track Your Order
+                    </a>
+                  )}
                 </div>
               )}
             </div>
