@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
 import { COURIERS } from "@/lib/couriers";
+import { resolveReceiverInfo } from "@/lib/shipping";
 import { ChevronDown } from "lucide-react";
 import type { Payment, ShippingAddress } from "@/types/database";
 
@@ -172,7 +173,7 @@ export default function AdminPaymentsPage() {
   function toggleDropdown(payment: PaymentRow, type: "auction" | "winner" | "delivery") {
     setOpenDropdown((prev) => {
       const isOpen = prev?.paymentId === payment.id && prev?.type === type;
-      if (!isOpen && type === "delivery") loadCustomerEmail(payment.winner_user_id);
+      if (!isOpen && (type === "delivery" || type === "winner")) loadCustomerEmail(payment.winner_user_id);
       if (!isOpen && type === "winner") loadWinCounts(payment.winner_user_id);
       return isOpen ? null : { paymentId: payment.id, type };
     });
@@ -430,6 +431,11 @@ export default function AdminPaymentsPage() {
             const draft = trackingDrafts[payment.id] ?? "";
             const courierDraft = courierDrafts[payment.id] ?? "";
             const pinDraft = collectionPinDrafts[payment.id] ?? "";
+            const { name: deliveryReceiverName, phone: deliveryReceiverPhone } = resolveReceiverInfo({
+              shippingAddress: payment.shipping_address,
+              profileRealName: payment.winner?.real_name,
+              profileWhatsapp: payment.winner?.whatsapp,
+            });
 
             return (
               <Card key={payment.id}>
@@ -489,6 +495,25 @@ export default function AdminPaymentsPage() {
                       {/* Winner dropdown */}
                       {winnerOpen && (
                         <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">
+                          <p>
+                            <span className="text-gray-500">Full name: </span>
+                            {payment.winner?.real_name ?? "—"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">WhatsApp: </span>
+                            {payment.winner?.whatsapp ?? "—"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">Email: </span>
+                            {customerEmails[payment.winner_user_id] ??
+                              (customerEmailErrors[payment.winner_user_id] ? (
+                                <span className="text-red-500">
+                                  Unavailable ({customerEmailErrors[payment.winner_user_id]})
+                                </span>
+                              ) : (
+                                "Loading…"
+                              ))}
+                          </p>
                           {winCountsError[payment.winner_user_id] ? (
                             <p className="text-red-500">
                               Failed to load win counts ({winCountsError[payment.winner_user_id]})
@@ -525,69 +550,77 @@ export default function AdminPaymentsPage() {
 
                       {deliveryOpen && (
                         <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">
-                          <p>
-                            <span className="text-gray-500">Full name: </span>
-                            {payment.winner?.real_name ?? "—"}
-                          </p>
-                          <p>
-                            <span className="text-gray-500">WhatsApp: </span>
-                            {payment.winner?.whatsapp ?? "—"}
-                          </p>
-                          <p>
-                            <span className="text-gray-500">Email: </span>
-                            {customerEmails[payment.winner_user_id] ??
-                              (customerEmailErrors[payment.winner_user_id] ? (
-                                <span className="text-red-500">
-                                  Unavailable ({customerEmailErrors[payment.winner_user_id]})
-                                </span>
-                              ) : (
-                                "Loading…"
-                              ))}
-                          </p>
-                          {isCollection ? (
-                            <>
-                              <p>
-                                <span className="text-gray-500">Collection date: </span>
-                                {payment.collection_date ? formatDateOnly(payment.collection_date) : "—"}
-                              </p>
-                              <p>
-                                <span className="text-gray-500">Time slot: </span>
-                                {payment.collection_time_slot ?? "—"}
-                              </p>
-                              {payment.collection_remarks && (
-                                <p>
-                                  <span className="text-gray-500">Remarks: </span>
-                                  {payment.collection_remarks}
-                                </p>
-                              )}
-                              {payment.collection_pin && (
-                                <p>
-                                  <span className="text-gray-500">Collection PIN: </span>
-                                  {payment.collection_pin}
-                                </p>
-                              )}
-                            </>
-                          ) : payment.shipping_address ? (
-                            <>
-                              <p>
-                                <span className="text-gray-500">Address label: </span>
-                                {payment.shipping_address.label}
-                              </p>
-                              <p>
-                                <span className="text-gray-500">Address: </span>
-                                {payment.shipping_address.address_line1}
-                                {payment.shipping_address.address_line2
-                                  ? `, ${payment.shipping_address.address_line2}`
-                                  : ""}
-                              </p>
-                              <p>
-                                <span className="text-gray-500">City/State/Postcode: </span>
-                                {payment.shipping_address.city}, {payment.shipping_address.state}{" "}
-                                {payment.shipping_address.postal_code}
-                              </p>
-                            </>
+                          {payment.payment_status === "pending" ? (
+                            <p className="text-gray-400">
+                              Awaiting customer to complete payment and delivery details
+                            </p>
                           ) : (
-                            <p className="text-gray-400">No shipping address on file</p>
+                            <>
+                              <p>
+                                <span className="text-gray-500">Full name: </span>
+                                {deliveryReceiverName || "—"}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Phone: </span>
+                                {deliveryReceiverPhone || "—"}
+                              </p>
+                              <p>
+                                <span className="text-gray-500">Email: </span>
+                                {customerEmails[payment.winner_user_id] ??
+                                  (customerEmailErrors[payment.winner_user_id] ? (
+                                    <span className="text-red-500">
+                                      Unavailable ({customerEmailErrors[payment.winner_user_id]})
+                                    </span>
+                                  ) : (
+                                    "Loading…"
+                                  ))}
+                              </p>
+                              {isCollection ? (
+                                <>
+                                  <p>
+                                    <span className="text-gray-500">Collection date: </span>
+                                    {payment.collection_date ? formatDateOnly(payment.collection_date) : "—"}
+                                  </p>
+                                  <p>
+                                    <span className="text-gray-500">Time slot: </span>
+                                    {payment.collection_time_slot ?? "—"}
+                                  </p>
+                                  {payment.collection_remarks && (
+                                    <p>
+                                      <span className="text-gray-500">Remarks: </span>
+                                      {payment.collection_remarks}
+                                    </p>
+                                  )}
+                                  {payment.collection_pin && (
+                                    <p>
+                                      <span className="text-gray-500">Collection PIN: </span>
+                                      {payment.collection_pin}
+                                    </p>
+                                  )}
+                                </>
+                              ) : payment.shipping_address ? (
+                                <>
+                                  <p>
+                                    <span className="text-gray-500">Address label: </span>
+                                    {payment.shipping_address.label}
+                                  </p>
+                                  <p>
+                                    <span className="text-gray-500">Address: </span>
+                                    {payment.shipping_address.address_line1}
+                                    {payment.shipping_address.address_line2
+                                      ? `, ${payment.shipping_address.address_line2}`
+                                      : ""}
+                                  </p>
+                                  <p>
+                                    <span className="text-gray-500">City/State/Postcode: </span>
+                                    {payment.shipping_address.city}, {payment.shipping_address.state}{" "}
+                                    {payment.shipping_address.postal_code}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-gray-400">No shipping address on file</p>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

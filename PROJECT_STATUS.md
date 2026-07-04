@@ -20,6 +20,14 @@
 
 ## Session Log
 
+### Day 10 — 4 July 2026 (later still, part 5)
+
+**Fixed — admin `/admin/payments` dropdowns:**
+- Winner/Username dropdown now also shows Full name, WhatsApp, and Email (was previously just the three win counts) — Email now loads on opening either the Winner or Delivery dropdown.
+- Delivery Details dropdown: for `payment_status = 'pending'` it now just shows "Awaiting customer to complete payment and delivery details" with no contact/address info (there isn't any yet at that stage). For submitted-and-beyond, Full name/Phone now come from the selected `shipping_addresses` row (`recipient_name`/`phone`) via the shared `resolveReceiverInfo()` helper, falling back to `profiles.real_name`/`whatsapp` only for self-collection orders (no shipping address on file) — same pattern already used for emails and the customer payment page.
+
+---
+
 ### Day 9 — 4 July 2026 (later still, part 4)
 
 **Added:**
