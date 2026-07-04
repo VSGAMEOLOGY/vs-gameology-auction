@@ -89,6 +89,30 @@ export default function AdminPaymentsPage() {
     load();
   }, [filter, supabase]);
 
+  useEffect(() => {
+    async function sendPendingWinEmails() {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("payment_status", "pending")
+        .eq("win_email_sent", false);
+
+      if (error) {
+        console.error("Failed to check for pending win emails:", error);
+        return;
+      }
+
+      for (const p of data ?? []) {
+        fetch("/api/payments/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentId: p.id, event: "won" }),
+        }).catch((err) => console.error("Failed to trigger win email:", err));
+      }
+    }
+    sendPendingWinEmails();
+  }, [supabase]);
+
   async function loadCustomerEmail(userId: string) {
     if (customerEmails[userId]) return;
     setCustomerEmailErrors((prev) => {

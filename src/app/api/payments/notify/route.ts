@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    if (event === "submitted" || event === "won") {
+    if (event === "submitted") {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -56,6 +56,38 @@ export async function POST(request: Request) {
       if (!ownPayment || ownPayment.winner_user_id !== user.id) {
         console.error("/api/payments/notify: caller does not own payment", { paymentId, userId: user.id });
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (event === "won") {
+      // Triggered either by the winner loading their own pending payment
+      // page, or by an admin loading /admin/payments (to catch anyone who
+      // hasn't visited theirs yet) -- allow either.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        console.error("/api/payments/notify: no authenticated user for 'won' event");
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const { data: ownPayment, error: ownPaymentError } = await supabase
+        .from("payments")
+        .select("winner_user_id")
+        .eq("id", paymentId)
+        .single();
+
+      if (ownPaymentError) {
+        console.error("/api/payments/notify: failed to load payment for auth check", ownPaymentError);
+      }
+
+      const isOwner = ownPayment?.winner_user_id === user.id;
+      if (!isOwner) {
+        try {
+          await requireAdmin(supabase);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unauthorized";
+          console.error("/api/payments/notify: 'won' event caller is neither owner nor admin", message);
+          return NextResponse.json({ error: message }, { status: message === "Forbidden" ? 403 : 401 });
+        }
       }
     } else {
       try {

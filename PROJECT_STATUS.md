@@ -20,6 +20,14 @@
 
 ## Session Log
 
+### Day 9 — 4 July 2026 (later still, part 4)
+
+**Added:**
+- Third win-email trigger: `/admin/payments` now checks for any `payment_status = 'pending' AND win_email_sent = false` rows on load and fires `/api/payments/notify` ("won") for each — since admins open this page daily in practice, it's a reliable backstop that doesn't depend on Vercel Cron (still registered, but this removes any dependence on it) or on the winner ever visiting their own payment page. All three paths (winner's page load, admin's page load, the daily cron) share the same atomic `win_email_sent` claim-and-flip, so none of them can double-send regardless of how many fire.
+- `/api/payments/notify`'s `"won"` event now authorizes either the payment's own winner *or* an admin (previously winner-only, which would have 403'd every admin-triggered call).
+
+---
+
 ### Day 8 — 4 July 2026 (later still, part 3)
 
 **Fixed:**
