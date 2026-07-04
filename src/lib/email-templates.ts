@@ -110,6 +110,13 @@ function baseSummaryRows(
   ];
 }
 
+function receiverRows(receiverName: string, receiverPhone: string): [string, string][] {
+  return [
+    ["Receiver Name", receiverName],
+    ["Receiver Phone", receiverPhone],
+  ];
+}
+
 export function buildPaymentSubmittedEmail({
   auctionTitle,
   auctionNumber,
@@ -172,6 +179,8 @@ export function buildPaymentVerifiedEmail({
   winningBid,
   shippingFeeLabel,
   totalAmount,
+  receiverName,
+  receiverPhone,
   isCollection,
   collectionDate,
   collectionTimeSlot,
@@ -184,6 +193,8 @@ export function buildPaymentVerifiedEmail({
   winningBid: number;
   shippingFeeLabel: string;
   totalAmount: number;
+  receiverName: string;
+  receiverPhone: string;
   isCollection: boolean;
   collectionDate?: string | null;
   collectionTimeSlot?: string | null;
@@ -227,6 +238,7 @@ export function buildPaymentVerifiedEmail({
     ${summaryTable([
       ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Total Amount", formatCurrency(totalAmount)],
+      ...receiverRows(receiverName, receiverPhone),
     ])}
     ${fulfillmentHtml}
     ${buttonHtml(paymentUrl, "View Payment Details")}
@@ -250,6 +262,8 @@ export function buildOrderDispatchedEmail({
   winningBid,
   shippingFeeLabel,
   totalAmount,
+  receiverName,
+  receiverPhone,
   trackingNumber,
   courier,
 }: {
@@ -259,6 +273,8 @@ export function buildOrderDispatchedEmail({
   winningBid: number;
   shippingFeeLabel: string;
   totalAmount: number;
+  receiverName: string;
+  receiverPhone: string;
   trackingNumber: string;
   courier: string;
 }) {
@@ -272,6 +288,7 @@ export function buildOrderDispatchedEmail({
       ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Courier", courier],
       ["Total Amount", formatCurrency(totalAmount)],
+      ...receiverRows(receiverName, receiverPhone),
     ])}
     ${trackingUrl ? buttonHtml(trackingUrl, "Track Your Order") : ""}
     <p style="margin:16px 0 0;font-size:14px;color:#374151;">Please use this tracking number to track your delivery. Thank you for shopping with VS GAMEOLOGY!</p>
@@ -301,6 +318,8 @@ export function buildCollectionConfirmedEmail({
   winningBid,
   shippingFeeLabel,
   totalAmount,
+  receiverName,
+  receiverPhone,
 }: {
   username: string;
   auctionTitle: string;
@@ -308,6 +327,8 @@ export function buildCollectionConfirmedEmail({
   winningBid: number;
   shippingFeeLabel: string;
   totalAmount: number;
+  receiverName: string;
+  receiverPhone: string;
 }) {
   const message = "Your collection has been confirmed! Thank you for shopping with VS GAMEOLOGY!";
   const bodyHtml = `
@@ -315,6 +336,7 @@ export function buildCollectionConfirmedEmail({
     ${summaryTable([
       ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Total Amount", formatCurrency(totalAmount)],
+      ...receiverRows(receiverName, receiverPhone),
     ])}
   `;
 
@@ -336,6 +358,8 @@ export function buildOrderDeliveredEmail({
   winningBid,
   shippingFeeLabel,
   totalAmount,
+  receiverName,
+  receiverPhone,
 }: {
   username: string;
   auctionTitle: string;
@@ -343,6 +367,8 @@ export function buildOrderDeliveredEmail({
   winningBid: number;
   shippingFeeLabel: string;
   totalAmount: number;
+  receiverName: string;
+  receiverPhone: string;
 }) {
   const message =
     "great news! Your order has been delivered. We hope you enjoy your item. Thank you for shopping with VS GAMEOLOGY!";
@@ -351,6 +377,7 @@ export function buildOrderDeliveredEmail({
     ${summaryTable([
       ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Total Amount", formatCurrency(totalAmount)],
+      ...receiverRows(receiverName, receiverPhone),
     ])}
   `;
 
@@ -364,6 +391,7 @@ export function buildOrderDeliveredEmail({
       `Winning Bid: ${formatCurrency(winningBid)}`,
       `Shipping Fee: ${shippingFeeLabel}`,
       `Total Amount: ${formatCurrency(totalAmount)}`,
+      `Receiver: ${receiverName} (${receiverPhone})`,
     ].join("\n"),
     html: emailShell({
       heading: "Your Order Has Been Delivered!",

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendEmail } from "@/lib/email";
 import { buildOrderDeliveredEmail } from "@/lib/email-templates";
-import { formatShippingFeeLabel } from "@/lib/shipping";
+import { formatShippingFeeLabel, resolveReceiverInfo } from "@/lib/shipping";
 
 export const maxDuration = 60;
 
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const { data: duePayments, error } = await service
     .from("payments")
     .select(
-      "*, auction:auctions(title, auction_number), shipping_address:shipping_addresses(state)"
+      "*, auction:auctions(title, auction_number), shipping_address:shipping_addresses(state, recipient_name, phone)"
     )
     .eq("payment_status", "dispatched")
     .not("dispatched_at", "is", null)
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
     const { data: winnerProfile } = await service
       .from("profiles")
-      .select("username")
+      .select("username, real_name, whatsapp")
       .eq("id", payment.winner_user_id)
       .single();
 
@@ -63,6 +63,11 @@ export async function GET(request: Request) {
         shippingFee: payment.shipping_fee,
         state: payment.shipping_address?.state ?? null,
       });
+      const { name: receiverName, phone: receiverPhone } = resolveReceiverInfo({
+        shippingAddress: payment.shipping_address,
+        profileRealName: winnerProfile?.real_name,
+        profileWhatsapp: winnerProfile?.whatsapp,
+      });
       const { subject, text, html } = buildOrderDeliveredEmail({
         username,
         auctionTitle,
@@ -70,6 +75,8 @@ export async function GET(request: Request) {
         winningBid: payment.winning_bid,
         shippingFeeLabel,
         totalAmount: payment.total_amount,
+        receiverName,
+        receiverPhone,
       });
       const result = await sendEmail({ to: winnerEmail, subject, text, html });
       if (!result.ok) {

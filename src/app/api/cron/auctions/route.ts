@@ -36,12 +36,18 @@ export async function GET(request: Request) {
     } | null;
   };
 
+  // Backup path only -- the primary trigger is client-side, the first
+  // time the winner loads their own pending payment page (see
+  // /payments/[auctionId]/page.tsx + /api/payments/notify's "won"
+  // event), since nothing in this repo actually schedules this
+  // endpoint. Both paths share the same win_email_sent flag and claim
+  // it atomically, so whichever runs first is the only one that sends.
   const { data: pendingWinEmails, error: pendingError } = await supabase
     .from("payments")
     .select(
       "id, auction_id, winner_user_id, winning_bid, auction:auctions(title, auction_number, shipping_type, shipping_fee_west, shipping_fee_east)"
     )
-    .is("win_email_sent_at", null)
+    .eq("win_email_sent", false)
     .returns<PendingWinPayment[]>();
 
   if (pendingError) {
@@ -51,6 +57,20 @@ export async function GET(request: Request) {
   let winEmailsSent = 0;
 
   for (const payment of pendingWinEmails ?? []) {
+    const { data: claimedPayment, error: claimError } = await supabase
+      .from("payments")
+      .update({ win_email_sent: true })
+      .eq("id", payment.id)
+      .eq("win_email_sent", false)
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) {
+      errors.push(`win email claim for payment ${payment.id}: ${claimError.message}`);
+      continue;
+    }
+    if (!claimedPayment) continue; // already sent via the client-side path
+
     const { data: winnerProfile } = await supabase
       .from("profiles")
       .select("username")
@@ -78,12 +98,6 @@ export async function GET(request: Request) {
     } else {
       errors.push(`win email for payment ${payment.id}: no email on file for winner`);
     }
-
-    const { error: markSentError } = await supabase
-      .from("payments")
-      .update({ win_email_sent_at: new Date().toISOString() })
-      .eq("id", payment.id);
-    if (markSentError) errors.push(`win email mark-sent for payment ${payment.id}: ${markSentError.message}`);
   }
 
   if (errors.length > 0) {

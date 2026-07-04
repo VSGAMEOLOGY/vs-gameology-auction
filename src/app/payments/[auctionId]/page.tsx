@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDateOnly, cn } from "@/lib/utils";
 import { getCourierTrackingUrl } from "@/lib/couriers";
-import { resolveShippingZone as resolveZone } from "@/lib/shipping";
+import { resolveShippingZone as resolveZone, resolveReceiverInfo } from "@/lib/shipping";
 import { ChevronDown, UploadCloud, CheckCircle, XCircle, Truck } from "lucide-react";
 import type { Payment, Profile, ShippingAddress } from "@/types/database";
 
@@ -121,6 +121,13 @@ export default function PaymentDetailPage() {
         setPayment(pay);
         if (pay.fulfillment_type === "collection" || pay.auction?.shipping_type === "collection") {
           setFulfillmentChoice("collection");
+        }
+        if (pay.payment_status === "pending" && !pay.win_email_sent) {
+          fetch("/api/payments/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paymentId: pay.id, event: "won" }),
+          }).catch((err) => console.error("Failed to trigger win email:", err));
         }
       }
       if (prof) setProfile(prof);
@@ -308,6 +315,11 @@ export default function PaymentDetailPage() {
   ].join("\n");
   const eastMalaysiaWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(eastMalaysiaWhatsappMessage)}`;
   const trackingUrl = getCourierTrackingUrl(payment.courier, payment.tracking_number);
+  const { name: receiverName, phone: receiverPhone } = resolveReceiverInfo({
+    shippingAddress: payment.shipping_address,
+    profileRealName: profile?.real_name,
+    profileWhatsapp: profile?.whatsapp,
+  });
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
@@ -681,8 +693,8 @@ export default function PaymentDetailPage() {
               <div className="rounded-lg border border-gray-200 p-4 text-left text-sm">
                 <p className="mb-2 font-semibold text-gray-700">Receiver Information</p>
                 <div className="space-y-1 text-gray-600">
-                  <p>{profile?.real_name}</p>
-                  <p>{profile?.whatsapp}</p>
+                  <p>{receiverName}</p>
+                  <p>{receiverPhone}</p>
                   <p>{userEmail}</p>
                 </div>
               </div>

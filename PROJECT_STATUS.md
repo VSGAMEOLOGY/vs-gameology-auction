@@ -20,6 +20,17 @@
 
 ## Session Log
 
+### Day 7 — 4 July 2026 (later still, part 2)
+
+**Fixed:**
+- Winner email genuinely fires now: `/api/cron/auctions`'s win-email polling was dead code because nothing schedules that endpoint (no `crons` entry, no GitHub Action). The win email is now triggered client-side instead, the first time the winner loads their own pending payment page (`/payments/[auctionId]/page.tsx` calls `/api/payments/notify` with a new `"won"` event). That event does an atomic claim-and-flip on `payments.win_email_sent` (new boolean, migration 025) so it can never double-send even if the effect fires twice; the old cron path was kept as a harmless backup using the same flag.
+- Receiver name/phone across all customer-facing emails (verified, dispatched, collection confirmed, delivered) and the `/payments/[auctionId]` "Receiver Information" card now come from the shipping address the customer actually selected (`shipping_addresses.recipient_name` / `.phone`) instead of `profiles.real_name` / `.whatsapp`, via a shared `resolveReceiverInfo()` helper — profile fields are now only a fallback for self-collection orders (no shipping address on file).
+
+**Migrations applied:**
+- 025: `payments.win_email_sent` boolean (backfilled so existing payments don't retroactively trigger a "you won" email)
+
+---
+
 ### Day 6 — 4 July 2026 (later still)
 
 **Added:**

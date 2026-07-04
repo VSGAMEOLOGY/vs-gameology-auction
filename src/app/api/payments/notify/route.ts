@@ -9,11 +9,12 @@ import {
   buildOrderDispatchedEmail,
   buildCollectionConfirmedEmail,
   buildOrderDeliveredEmail,
+  buildAuctionWonEmail,
 } from "@/lib/email-templates";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { formatShippingFeeLabel } from "@/lib/shipping";
+import { formatShippingFeeLabel, resolveReceiverInfo } from "@/lib/shipping";
 
-type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected" | "delivered";
+type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected" | "delivered" | "won";
 
 type NotifyBody = {
   paymentId: number;
@@ -33,12 +34,12 @@ export async function POST(request: Request) {
 
     const supabase = await createClient();
 
-    if (event === "submitted") {
+    if (event === "submitted" || event === "won") {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        console.error("/api/payments/notify: no authenticated user for 'submitted' event");
+        console.error(`/api/payments/notify: no authenticated user for '${event}' event`);
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
@@ -70,7 +71,9 @@ export async function POST(request: Request) {
 
     const { data: payment, error: paymentError } = await service
       .from("payments")
-      .select("*, auction:auctions(title, auction_number), shipping_address:shipping_addresses(state)")
+      .select(
+        "*, auction:auctions(title, auction_number, shipping_type, shipping_fee_west, shipping_fee_east), shipping_address:shipping_addresses(state, recipient_name, phone)"
+      )
       .eq("id", paymentId)
       .single();
 
@@ -88,13 +91,19 @@ export async function POST(request: Request) {
 
     const { data: winnerProfile, error: profileError } = await service
       .from("profiles")
-      .select("username")
+      .select("username, real_name, whatsapp")
       .eq("id", payment.winner_user_id)
       .single();
 
     if (profileError) {
       console.error("/api/payments/notify: failed to load winner profile", profileError);
     }
+
+    const { name: receiverName, phone: receiverPhone } = resolveReceiverInfo({
+      shippingAddress: payment.shipping_address,
+      profileRealName: winnerProfile?.real_name,
+      profileWhatsapp: winnerProfile?.whatsapp,
+    });
 
     const { data: winnerAuth, error: winnerAuthError } = await service.auth.admin.getUserById(
       payment.winner_user_id
@@ -170,6 +179,8 @@ export async function POST(request: Request) {
             winningBid: payment.winning_bid,
             shippingFeeLabel,
             totalAmount: payment.total_amount,
+            receiverName,
+            receiverPhone,
             isCollection,
             collectionDate: payment.collection_date,
             collectionTimeSlot: payment.collection_time_slot,
@@ -213,6 +224,8 @@ export async function POST(request: Request) {
           winningBid: payment.winning_bid,
           shippingFeeLabel,
           totalAmount: payment.total_amount,
+          receiverName,
+          receiverPhone,
           trackingNumber: payment.tracking_number,
           courier: payment.courier ?? "-",
         });
@@ -245,6 +258,8 @@ export async function POST(request: Request) {
           winningBid: payment.winning_bid,
           shippingFeeLabel,
           totalAmount: payment.total_amount,
+          receiverName,
+          receiverPhone,
         });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
@@ -275,6 +290,8 @@ export async function POST(request: Request) {
           winningBid: payment.winning_bid,
           shippingFeeLabel,
           totalAmount: payment.total_amount,
+          receiverName,
+          receiverPhone,
         });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
         emailSent = result.ok;
@@ -294,6 +311,42 @@ export async function POST(request: Request) {
         console.error("/api/payments/notify: failed to insert delivered notification", notifyError);
       }
       notified = !notifyError;
+    } else if (event === "won") {
+      // Atomic claim: only the caller that flips win_email_sent from false
+      // to true actually sends the email, so re-firing this (e.g. the
+      // page effect running twice) never double-sends.
+      const { data: claimedPayment, error: claimError } = await service
+        .from("payments")
+        .update({ win_email_sent: true })
+        .eq("id", paymentId)
+        .eq("win_email_sent", false)
+        .select("id")
+        .maybeSingle();
+
+      if (claimError) {
+        console.error("/api/payments/notify: failed to claim win-email send", claimError);
+      } else if (!claimedPayment) {
+        // Already sent (or lost the race) -- nothing to do.
+      } else if (!winnerEmail) {
+        console.error("/api/payments/notify: no email on file for winner, skipping win email", payment.winner_user_id);
+      } else {
+        const { subject, text, html } = buildAuctionWonEmail({
+          username,
+          auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingType: payment.auction?.shipping_type ?? null,
+          shippingFeeWest: payment.auction?.shipping_fee_west ?? null,
+          shippingFeeEast: payment.auction?.shipping_fee_east ?? null,
+          paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
+        });
+        const result = await sendEmail({ to: winnerEmail, subject, text, html });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send win email", result.error);
+        }
+      }
+      notified = true;
     }
 
     return NextResponse.json({ ok: true, emailSent, notified });
