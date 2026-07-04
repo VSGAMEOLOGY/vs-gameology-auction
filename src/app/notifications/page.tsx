@@ -97,7 +97,9 @@ export default function NotificationsPage() {
                             : notification.notification_type === "auction_won" ||
                                 notification.notification_type === "payment_verified" ||
                                 notification.notification_type === "payment_rejected" ||
-                                notification.notification_type === "order_dispatched"
+                                notification.notification_type === "order_dispatched" ||
+                                notification.notification_type === "order_delivered" ||
+                                notification.notification_type === "collection_confirmed"
                               ? `/payments/${notification.related_auction_id}`
                               : `/auctions/${notification.related_auction_id}`
                         }

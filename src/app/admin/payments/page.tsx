@@ -488,18 +488,16 @@ export default function AdminPaymentsPage() {
                         </div>
                       )}
 
-                      {/* Delivery details — clickable, only meaningful once submitted */}
-                      {payment.payment_status !== "pending" && (
-                        <button
-                          onClick={() => toggleDropdown(payment, "delivery")}
-                          className="mt-1 flex items-center gap-1 text-sm text-gray-500 hover:text-brand-600 transition-colors text-left"
-                        >
-                          <span>Delivery Details</span>
-                          <ChevronDown
-                            className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${deliveryOpen ? "rotate-180" : ""}`}
-                          />
-                        </button>
-                      )}
+                      {/* Delivery details — clickable */}
+                      <button
+                        onClick={() => toggleDropdown(payment, "delivery")}
+                        className="mt-1 flex items-center gap-1 text-sm text-gray-500 hover:text-brand-600 transition-colors text-left"
+                      >
+                        <span>Delivery Details</span>
+                        <ChevronDown
+                          className={`h-3 w-3 shrink-0 text-gray-400 transition-transform ${deliveryOpen ? "rotate-180" : ""}`}
+                        />
+                      </button>
 
                       {deliveryOpen && (
                         <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm space-y-1">

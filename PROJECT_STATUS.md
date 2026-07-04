@@ -20,6 +20,17 @@
 
 ## Session Log
 
+### Day 8 — 4 July 2026 (later still, part 3)
+
+**Fixed:**
+- Notification "View" button for `order_delivered` and `collection_confirmed` was falling through to `/auctions/[id]` instead of `/payments/[auctionId]` (only `auction_won`/`payment_verified`/`payment_rejected`/`order_dispatched` were in the payments-page branch) — added the two missing types. Left `payment_submitted` routing to `/admin/payments` as-is: that notification goes to admins, and `/payments/[auctionId]` is hardcoded to the *viewer's own* `winner_user_id`, so sending an admin there would just hang on "Loading..." forever.
+- Admin `/admin/payments` "Delivery Details" dropdown was hidden for the Pending tab (`payment.payment_status !== "pending"` gate) — now shows on every tab.
+- Win email reliability: confirmed via `vercel crons ls` that `/api/cron/auctions` was never actually registered with Vercel (only `/api/cron/deliveries` was) — the client-side "trigger on first page load" from last session is a real mechanism but has no guarantee the winner ever visits that page. Rather than reach for a Postgres-side webhook (`pg_net` calling back into the app, which risks breaking the `payments` INSERT itself if the trigger misbehaves, and needs secret material that can't safely live in a committed migration), registered `/api/cron/auctions` in `vercel.json` at `*/5 * * * *` — it already contains fully-tested win-email logic (atomic claim on `payments.win_email_sent`, same as the client path) from two sessions ago, so this reuses working code instead of adding new untested DB-trigger machinery. The client-side trigger stays in place as a faster (near-instant) path for anyone who does check promptly; the cron is the guaranteed backstop within 5 minutes for everyone else.
+
+**Note:** the win email flow needs migrations 024 and 025 actually applied in Supabase (columns `win_email_sent_at`, `win_email_sent`) — if those haven't been run yet, the atomic claim will silently fail and no win email will ever send, which would look identical to "still not sending."
+
+---
+
 ### Day 7 — 4 July 2026 (later still, part 2)
 
 **Fixed:**
