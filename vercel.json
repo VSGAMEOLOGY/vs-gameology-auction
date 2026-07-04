@@ -3,6 +3,6 @@
   "regions": ["sin1"],
   "crons": [
     { "path": "/api/cron/deliveries", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/auctions", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/auctions", "schedule": "30 0 * * *" }
   ]
 }
