@@ -33,8 +33,10 @@ const TIME_SLOTS = [
 const PICKUP_ADDRESS =
   "NO 92-A (TINGKAT 1), JALAN BPU 1, BANDAR PUCHONG UTAMA, 47100 PUCHONG, SELANGOR";
 
+const ADDRESS_LABELS = ["Home", "Office"];
+
 const emptyAddress = {
-  label: "Home",
+  label: "",
   recipient_name: "",
   phone: "",
   address_line1: "",
@@ -64,6 +66,7 @@ export default function PaymentDetailPage() {
   const [collectionTimeSlot, setCollectionTimeSlot] = useState("");
   const [collectionRemarks, setCollectionRemarks] = useState("");
   const [addressConfirmed, setAddressConfirmed] = useState(false);
+  const [confirmedAddress, setConfirmedAddress] = useState<ShippingAddress | null>(null);
   const [addressSaving, setAddressSaving] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [error, setError] = useState("");
@@ -162,6 +165,7 @@ export default function PaymentDetailPage() {
     let finalState: string | undefined;
     if (isAddingNewAddress) {
       if (
+        !newAddress.label ||
         !newAddress.recipient_name ||
         !newAddress.phone ||
         !newAddress.address_line1 ||
@@ -196,6 +200,9 @@ export default function PaymentDetailPage() {
       }
       setAddresses((prev) => [...prev, savedAddress]);
       setAddressSelection(savedAddress.id.toString());
+      setConfirmedAddress(savedAddress);
+    } else if (selectedSavedAddress) {
+      setConfirmedAddress(selectedSavedAddress);
     }
 
     setAddressConfirmed(true);
@@ -447,14 +454,14 @@ export default function PaymentDetailPage() {
                       </div>
                       <div className="space-y-1 text-gray-600">
                         <p>
-                          {selectedSavedAddress?.label} — {selectedSavedAddress?.recipient_name}
+                          {confirmedAddress?.label} — {confirmedAddress?.recipient_name}
                         </p>
-                        <p>{selectedSavedAddress?.phone}</p>
-                        <p>{selectedSavedAddress?.address_line1}</p>
-                        {selectedSavedAddress?.address_line2 && <p>{selectedSavedAddress.address_line2}</p>}
+                        <p>{confirmedAddress?.phone}</p>
+                        <p>{confirmedAddress?.address_line1}</p>
+                        {confirmedAddress?.address_line2 && <p>{confirmedAddress.address_line2}</p>}
                         <p>
-                          {selectedSavedAddress?.city}, {selectedSavedAddress?.state}{" "}
-                          {selectedSavedAddress?.postal_code}
+                          {confirmedAddress?.city}, {confirmedAddress?.state}{" "}
+                          {confirmedAddress?.postal_code}
                         </p>
                       </div>
                       {zone && (
@@ -468,7 +475,11 @@ export default function PaymentDetailPage() {
                       <Select
                         label="Delivery Address"
                         value={addressSelection}
-                        onChange={(e) => setAddressSelection(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setAddressSelection(value);
+                          if (value === "new") setNewAddress(emptyAddress);
+                        }}
                         options={[
                           { value: "", label: "Select a delivery address" },
                           ...addresses.map((a) => ({
@@ -481,6 +492,16 @@ export default function PaymentDetailPage() {
 
                       {isAddingNewAddress && (
                         <div className="grid gap-3 sm:grid-cols-2">
+                          <Select
+                            label="Label"
+                            value={newAddress.label}
+                            onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                            options={[
+                              { value: "", label: "Select Label" },
+                              ...ADDRESS_LABELS.map((l) => ({ value: l, label: l })),
+                            ]}
+                            required
+                          />
                           <Input
                             label="Recipient Name"
                             value={newAddress.recipient_name}

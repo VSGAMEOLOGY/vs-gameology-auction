@@ -15,7 +15,7 @@ interface AddressManagerProps {
 }
 
 const emptyForm = {
-  label: "Home",
+  label: "",
   recipient_name: "",
   phone: "",
   address_line1: "",
@@ -72,12 +72,21 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
   }
 
   async function remove(id: number) {
-    await supabase.from("shipping_addresses").delete().eq("id", id);
+    setError("");
+    const { error: deleteError } = await supabase
+      .from("shipping_addresses")
+      .delete()
+      .eq("id", id);
+    if (deleteError) {
+      setError(deleteError.message);
+      return;
+    }
     setAddresses((prev) => prev.filter((a) => a.id !== id));
   }
 
   return (
     <div className="space-y-4">
+      {error && <Alert variant="error">{error}</Alert>}
       {addresses.map((addr) => (
         <Card key={addr.id}>
           <CardContent className="flex items-start justify-between py-4">
@@ -120,17 +129,17 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
         <Card>
           <CardContent className="py-4">
             <form onSubmit={handleAdd} className="space-y-3">
-              {error && <Alert variant="error">{error}</Alert>}
               <div>
   <label className="text-sm font-medium">Label</label>
   <select
     value={form.label}
     onChange={(e) => setForm({ ...form, label: e.target.value })}
     className="w-full rounded-md border border-gray-300 px-3 py-2"
+    required
   >
+    <option value="">Select Label</option>
     <option value="Home">Home</option>
     <option value="Office">Office</option>
-    <option value="Relative House">Relative House</option>
   </select>
 </div>
                 <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
