@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateOnly } from "@/lib/utils";
 import { COURIERS } from "@/lib/couriers";
 import { resolveReceiverInfo } from "@/lib/shipping";
 import { ChevronDown } from "lucide-react";
@@ -42,6 +42,11 @@ type PaymentRow = Omit<Payment, "auction" | "winner" | "shipping_address"> & {
 
 type OpenDropdown = { paymentId: number; type: "auction" | "winner" | "delivery" } | null;
 
+function isPendingOver24h(payment: PaymentRow): boolean {
+  const createdAt = new Date(payment.created_at).getTime();
+  return Date.now() - createdAt > 24 * 60 * 60 * 1000;
+}
+
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [filter, setFilter] = useState("submitted");
@@ -58,6 +63,8 @@ export default function AdminPaymentsPage() {
   const [collectionPinDrafts, setCollectionPinDrafts] = useState<Record<number, string>>({});
   const [collectionSaving, setCollectionSaving] = useState<number | null>(null);
   const [deliverySaving, setDeliverySaving] = useState<number | null>(null);
+  const [winEmailSending, setWinEmailSending] = useState<number | null>(null);
+  const [reminderSending, setReminderSending] = useState<number | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -195,6 +202,53 @@ export default function AdminPaymentsPage() {
       }
     } catch (err) {
       console.error("Failed to send notification:", err);
+    }
+  }
+
+  async function resendWinEmail(payment: PaymentRow) {
+    setActionError("");
+    setWinEmailSending(payment.id);
+    try {
+      const res = await fetch("/api/payments/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId: payment.id, event: "won", force: true }),
+      });
+      if (!res.ok) {
+        setActionError(`Failed to resend win email: ${await res.text()}`);
+      } else {
+        setPayments((prev) =>
+          prev.map((p) => (p.id === payment.id ? { ...p, win_email_sent: true } : p))
+        );
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to resend win email");
+    } finally {
+      setWinEmailSending(null);
+    }
+  }
+
+  async function sendPaymentReminder(payment: PaymentRow) {
+    setActionError("");
+    setReminderSending(payment.id);
+    try {
+      const res = await fetch("/api/payments/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId: payment.id, event: "reminder" }),
+      });
+      if (!res.ok) {
+        setActionError(`Failed to send payment reminder: ${await res.text()}`);
+      } else {
+        const sentAt = new Date().toISOString();
+        setPayments((prev) =>
+          prev.map((p) => (p.id === payment.id ? { ...p, payment_reminder_sent_at: sentAt } : p))
+        );
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to send payment reminder");
+    } finally {
+      setReminderSending(null);
     }
   }
 
@@ -637,6 +691,38 @@ export default function AdminPaymentsPage() {
                         >
                           View payment proof
                         </a>
+                      )}
+
+                      {payment.payment_status === "pending" && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <Badge variant={payment.win_email_sent ? "success" : "warning"}>
+                            {payment.win_email_sent ? "✅ Notified" : "⏳ Pending"}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={winEmailSending === payment.id}
+                            onClick={() => resendWinEmail(payment)}
+                          >
+                            Resend Win Email
+                          </Button>
+                          {payment.win_email_sent && isPendingOver24h(payment) && (
+                            payment.payment_reminder_sent_at ? (
+                              <Button size="sm" variant="outline" disabled>
+                                Reminder Sent {formatDate(payment.payment_reminder_sent_at)}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                loading={reminderSending === payment.id}
+                                onClick={() => sendPaymentReminder(payment)}
+                              >
+                                Send Payment Reminder
+                              </Button>
+                            )
+                          )}
+                        </div>
                       )}
 
                       {canTrack && (

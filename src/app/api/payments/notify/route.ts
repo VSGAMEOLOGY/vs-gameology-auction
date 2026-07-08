@@ -10,22 +10,34 @@ import {
   buildCollectionConfirmedEmail,
   buildOrderDeliveredEmail,
   buildAuctionWonEmail,
+  buildPaymentReminderEmail,
 } from "@/lib/email-templates";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { formatShippingFeeLabel, resolveReceiverInfo } from "@/lib/shipping";
 
-type NotifyEvent = "submitted" | "reviewed" | "dispatched" | "collected" | "delivered" | "won";
+type NotifyEvent =
+  | "submitted"
+  | "reviewed"
+  | "dispatched"
+  | "collected"
+  | "delivered"
+  | "won"
+  | "reminder";
 
 type NotifyBody = {
   paymentId: number;
   event: NotifyEvent;
   approved?: boolean;
+  // Admin-only: for "won", bypass the win_email_sent dedup gate to
+  // manually resend an already-sent win email (see /admin/payments'
+  // "Resend Win Email" button).
+  force?: boolean;
 };
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<NotifyBody>;
-    const { paymentId, event, approved } = body;
+    const { paymentId, event, approved, force } = body;
 
     if (!paymentId || !event) {
       console.error("/api/payments/notify: missing paymentId or event", body);
@@ -33,6 +45,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createClient();
+    let callerIsAdmin = false;
 
     if (event === "submitted") {
       const {
@@ -83,6 +96,7 @@ export async function POST(request: Request) {
       if (!isOwner) {
         try {
           await requireAdmin(supabase);
+          callerIsAdmin = true;
         } catch (err) {
           const message = err instanceof Error ? err.message : "Unauthorized";
           console.error("/api/payments/notify: 'won' event caller is neither owner nor admin", message);
@@ -92,6 +106,7 @@ export async function POST(request: Request) {
     } else {
       try {
         await requireAdmin(supabase);
+        callerIsAdmin = true;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unauthorized";
         console.error("/api/payments/notify: admin check failed", message);
@@ -346,14 +361,13 @@ export async function POST(request: Request) {
     } else if (event === "won") {
       // Atomic claim: only the caller that flips win_email_sent from false
       // to true actually sends the email, so re-firing this (e.g. the
-      // page effect running twice) never double-sends.
-      const { data: claimedPayment, error: claimError } = await service
-        .from("payments")
-        .update({ win_email_sent: true })
-        .eq("id", paymentId)
-        .eq("win_email_sent", false)
-        .select("id")
-        .maybeSingle();
+      // page effect running twice) never double-sends. Admins can pass
+      // force:true (the "Resend Win Email" button) to bypass this gate
+      // and resend regardless of win_email_sent's current value.
+      const forceResend = force === true && callerIsAdmin;
+      let claim = service.from("payments").update({ win_email_sent: true }).eq("id", paymentId);
+      if (!forceResend) claim = claim.eq("win_email_sent", false);
+      const { data: claimedPayment, error: claimError } = await claim.select("id").maybeSingle();
 
       if (claimError) {
         console.error("/api/payments/notify: failed to claim win-email send", claimError);
@@ -377,6 +391,40 @@ export async function POST(request: Request) {
         if (!result.ok) {
           console.error("/api/payments/notify: failed to send win email", result.error);
         }
+      }
+      notified = true;
+    } else if (event === "reminder") {
+      if (payment.payment_status !== "pending") {
+        return NextResponse.json({ error: "Payment is no longer pending" }, { status: 400 });
+      }
+
+      if (!winnerEmail) {
+        console.error("/api/payments/notify: no email on file for winner, skipping reminder email", payment.winner_user_id);
+      } else {
+        const { subject, text, html } = buildPaymentReminderEmail({
+          username,
+          auctionTitle,
+          auctionNumber: payment.auction?.auction_number ?? "-",
+          winningBid: payment.winning_bid,
+          shippingType: payment.auction?.shipping_type ?? null,
+          shippingFeeWest: payment.auction?.shipping_fee_west ?? null,
+          shippingFeeEast: payment.auction?.shipping_fee_east ?? null,
+          totalAmount: payment.total_amount,
+          paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
+        });
+        const result = await sendEmail({ to: winnerEmail, subject, text, html });
+        emailSent = result.ok;
+        if (!result.ok) {
+          console.error("/api/payments/notify: failed to send reminder email", result.error);
+        }
+      }
+
+      const { error: reminderError } = await service
+        .from("payments")
+        .update({ payment_reminder_sent_at: new Date().toISOString() })
+        .eq("id", paymentId);
+      if (reminderError) {
+        console.error("/api/payments/notify: failed to update payment_reminder_sent_at", reminderError);
       }
       notified = true;
     }

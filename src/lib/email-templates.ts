@@ -401,6 +401,67 @@ export function buildOrderDeliveredEmail({
   };
 }
 
+export function buildPaymentReminderEmail({
+  username,
+  auctionTitle,
+  auctionNumber,
+  winningBid,
+  shippingType,
+  shippingFeeWest,
+  shippingFeeEast,
+  totalAmount,
+  paymentUrl,
+}: {
+  username: string;
+  auctionTitle: string;
+  auctionNumber: string;
+  winningBid: number;
+  shippingType: string | null;
+  shippingFeeWest: number | null;
+  shippingFeeEast: number | null;
+  totalAmount: number;
+  paymentUrl: string;
+}) {
+  const shippingOptionsLabel =
+    shippingType === "collection"
+      ? "Self Collection only"
+      : `West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)} / East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`;
+  const message =
+    "this is a friendly reminder that you have a pending payment for your winning bid. Please complete your payment as soon as possible to secure your item.";
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
+    ${summaryTable([
+      ["Auction Title", auctionTitle],
+      ["Auction Number", auctionNumber],
+      ["Winning Bid", formatCurrency(winningBid)],
+      ["Shipping Options", shippingOptionsLabel],
+      ["Total", formatCurrency(totalAmount)],
+    ])}
+    <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Final total will be confirmed once you select your delivery option.</p>
+    ${buttonHtml(paymentUrl, "Complete Payment")}
+  `;
+
+  return {
+    subject: `Payment Reminder - ${auctionTitle} - VS GAMEOLOGY`,
+    text: [
+      `Dear ${username}, ${message}`,
+      "",
+      `Auction: ${auctionTitle}`,
+      `Auction No: ${auctionNumber}`,
+      `Winning Bid: ${formatCurrency(winningBid)}`,
+      `Shipping Options: ${shippingOptionsLabel}`,
+      `Total: ${formatCurrency(totalAmount)}`,
+      `Complete payment: ${paymentUrl}`,
+    ].join("\n"),
+    html: emailShell({
+      heading: "Payment Reminder",
+      bodyHtml,
+      footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
+    }),
+  };
+}
+
 export function buildAuctionWonEmail({
   username,
   auctionTitle,

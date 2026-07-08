@@ -158,6 +158,7 @@ export interface Payment {
   collection_pin: string | null;
   win_email_sent_at: string | null;
   win_email_sent: boolean;
+  payment_reminder_sent_at: string | null;
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;

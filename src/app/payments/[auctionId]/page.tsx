@@ -53,8 +53,8 @@ export default function PaymentDetailPage() {
   const [profile, setProfile] = useState<Partial<Profile> | null>(null);
   const [payment, setPayment] = useState<Payment | null>(null);
   const [addresses, setAddresses] = useState<ShippingAddress[]>([]);
-  const [addressMode, setAddressMode] = useState<"saved" | "new">("saved");
-  const [addressId, setAddressId] = useState("");
+  // "" = nothing selected yet (placeholder), "new" = add-new-address form, else a saved address id
+  const [addressSelection, setAddressSelection] = useState("");
   const [newAddress, setNewAddress] = useState(emptyAddress);
   const [proofUrl, setProofUrl] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
@@ -131,13 +131,7 @@ export default function PaymentDetailPage() {
         }
       }
       if (prof) setProfile(prof);
-      if (addrs && addrs.length > 0) {
-        setAddresses(addrs);
-        const defaultAddr = addrs.find((a) => a.is_default);
-        setAddressId((defaultAddr ?? addrs[0]).id.toString());
-      } else {
-        setAddressMode("new");
-      }
+      if (addrs) setAddresses(addrs);
     }
     load();
   }, [auctionId, supabase]);
@@ -146,16 +140,15 @@ export default function PaymentDetailPage() {
   const canChooseFulfillment = auction?.shipping_type === "both";
   const isCollection = fulfillmentChoice === "collection";
 
-  const selectedSavedAddress = addresses.find((a) => a.id.toString() === addressId);
-  const selectedState = addressMode === "saved" ? selectedSavedAddress?.state : newAddress.state;
+  const isAddingNewAddress = addressSelection === "new";
+  const selectedSavedAddress = addresses.find((a) => a.id.toString() === addressSelection);
+  const selectedState = isAddingNewAddress ? newAddress.state : selectedSavedAddress?.state;
   const zone = selectedState ? resolveZone(selectedState) : null;
   const eastUnavailable = zone === "east" && auction?.ships_to_east === false;
 
-  const resolvedShippingFee = isCollection
-    ? 0
-    : zone === "east"
-      ? auction?.shipping_fee_east ?? 0
-      : auction?.shipping_fee_west ?? 0;
+  // Shipping fee is unknown until an address (and therefore a zone) has been selected.
+  const shippingFeeKnown = isCollection || zone !== null;
+  const resolvedShippingFee = isCollection ? 0 : zone === "east" ? auction?.shipping_fee_east ?? 0 : zone === "west" ? auction?.shipping_fee_west ?? 0 : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -175,7 +168,11 @@ export default function PaymentDetailPage() {
         return;
       }
     } else {
-      if (addressMode === "new") {
+      if (addressSelection === "") {
+        setError("Please select a delivery address");
+        return;
+      }
+      if (isAddingNewAddress) {
         if (
           !newAddress.recipient_name ||
           !newAddress.phone ||
@@ -189,10 +186,6 @@ export default function PaymentDetailPage() {
         }
         finalState = newAddress.state;
       } else {
-        if (!addressId) {
-          setError("Please select a shipping address");
-          return;
-        }
         finalState = selectedSavedAddress?.state;
       }
 
@@ -206,7 +199,7 @@ export default function PaymentDetailPage() {
 
     let shippingAddressId: number | null = null;
     if (!isCollection) {
-      if (addressMode === "new") {
+      if (isAddingNewAddress) {
         const { data: savedAddress, error: addressError } = await supabase
           .from("shipping_addresses")
           .insert({ ...newAddress, user_id: userId })
@@ -219,7 +212,7 @@ export default function PaymentDetailPage() {
         }
         shippingAddressId = savedAddress.id;
       } else {
-        shippingAddressId = Number(addressId);
+        shippingAddressId = Number(addressSelection);
       }
     }
 
@@ -284,12 +277,18 @@ export default function PaymentDetailPage() {
 
   const isPending = payment.payment_status === "pending";
   const isRejected = payment.payment_status === "rejected";
-  const displayedShippingFee = isPending ? resolvedShippingFee : payment.shipping_fee;
+  const displayedShippingFee = isPending
+    ? shippingFeeKnown
+      ? resolvedShippingFee ?? 0
+      : null
+    : payment.shipping_fee;
   const displayedTotal = isPending
-    ? payment.winning_bid + (isCollection ? 0 : resolvedShippingFee)
+    ? shippingFeeKnown
+      ? payment.winning_bid + (resolvedShippingFee ?? 0)
+      : null
     : payment.total_amount;
 
-  const readyForPayment = isPending && !eastUnavailable && (isCollection || zone !== null);
+  const readyForPayment = isPending && !eastUnavailable && shippingFeeKnown;
   const today = new Date().toISOString().slice(0, 10);
 
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL ||
@@ -400,16 +399,18 @@ export default function PaymentDetailPage() {
                     <span>
                       {isCollection ? (
                         <span className="text-green-600">RM 0 (Self Collection)</span>
-                      ) : !zone ? (
+                      ) : !shippingFeeKnown ? (
                         <span className="text-gray-400">Select an address</span>
                       ) : (
-                        formatCurrency(displayedShippingFee)
+                        formatCurrency(displayedShippingFee ?? 0)
                       )}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-gray-200 pt-2 font-semibold">
                     <span>Total</span>
-                    <span className="text-brand-600">{formatCurrency(displayedTotal)}</span>
+                    <span className={shippingFeeKnown ? "text-brand-600" : "text-gray-400"}>
+                      {shippingFeeKnown ? formatCurrency(displayedTotal ?? 0) : "Select an address"}
+                    </span>
                   </div>
                 </div>
               )}
@@ -422,42 +423,21 @@ export default function PaymentDetailPage() {
 
               {!isCollection && (
                 <div className="space-y-3">
-                  {addresses.length > 0 && (
-                    <div className="flex gap-6 text-sm">
-                      <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="radio"
-                          name="addressMode"
-                          checked={addressMode === "saved"}
-                          onChange={() => setAddressMode("saved")}
-                          className="h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-500"
-                        />
-                        Use saved address
-                      </label>
-                      <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="radio"
-                          name="addressMode"
-                          checked={addressMode === "new"}
-                          onChange={() => setAddressMode("new")}
-                          className="h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-500"
-                        />
-                        Add new address
-                      </label>
-                    </div>
-                  )}
-
-                  {addressMode === "saved" && addresses.length > 0 ? (
-                    <Select
-                      label="Shipping Address"
-                      value={addressId}
-                      onChange={(e) => setAddressId(e.target.value)}
-                      options={addresses.map((a) => ({
+                  <Select
+                    label="Delivery Address"
+                    value={addressSelection}
+                    onChange={(e) => setAddressSelection(e.target.value)}
+                    options={[
+                      { value: "", label: "Select a delivery address" },
+                      ...addresses.map((a) => ({
                         value: a.id.toString(),
                         label: `${a.label} - ${a.address_line1}, ${a.city}, ${a.state}`,
-                      }))}
-                    />
-                  ) : (
+                      })),
+                      { value: "new", label: "+ Add a new address" },
+                    ]}
+                  />
+
+                  {isAddingNewAddress && (
                     <div className="grid gap-3 sm:grid-cols-2">
                       <Input
                         label="Recipient Name"
@@ -579,7 +559,7 @@ export default function PaymentDetailPage() {
                     <p>Account No: 5123 4373 9288</p>
                   </div>
                   <p className="text-sm font-semibold text-brand-600">
-                    Pending amount: {formatCurrency(displayedTotal)}
+                    Pending amount: {formatCurrency(displayedTotal ?? 0)}
                   </p>
                   <p className="text-xs text-gray-500">
                     Please transfer the exact amount and upload your payment screenshot below.
