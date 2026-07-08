@@ -20,6 +20,30 @@
 
 ## Session Log
 
+### Session Complete — 8 July 2026 (tag: `v0.9-payment-flow-complete`)
+
+**Payment flow overhaul — end to end, considered complete as of this tag:**
+- Full payment flow overhaul: removed WhatsApp-based submission, replaced with self-service checkout
+- Bank transfer details shown with correct shipping fee per zone (West/East Malaysia / self-collection)
+- Payment screenshot upload with preview
+- Self-collection date and time slot picker
+- Payment success page with order summary, receiver info, billing details
+- Admin and customer email notifications for all payment lifecycle events
+- HTML branded email templates with VS GAMEOLOGY branding
+- Admin payment verification page with delivery details and user info dropdowns
+- Courier tracking (SPX Express, NinjaVan, LineClear) with correct per-courier tracking URLs
+- Self-collection PIN verification system
+- Dispatched and Delivered payment statuses, auto-deliver after 14 days via `pg_cron`
+- Winner bid email notification with dual trigger (winner's own page load + admin payments page load), on top of the existing cron backstop
+- Auction number shown on payments list and order summary
+- Notification "View" button linking to the correct page for every notification type
+- Admin Winner/Username dropdown shows full name, WhatsApp, email, and win counts
+- Admin Delivery Details dropdown shows an "awaiting details" message while pending, and correct shipping address data from submission onward
+
+**Migrations applied this session:** 020, 021, 022, 023, 024, 025 (see Migration History table)
+
+---
+
 ### Day 10 — 4 July 2026 (later still, part 5)
 
 **Fixed — admin `/admin/payments` dropdowns:**
@@ -164,7 +188,7 @@
 
 ---
 
-## Database Schema (19 migrations applied)
+## Database Schema (25 migrations applied)
 
 ### Tables
 - **profiles** — live columns: `id`, `username` (unique), `real_name`, `whatsapp`, `role` (user/admin), `status` (active/suspended), `verification_status`, `completed_wins`, `unpaid_wins`, `total_bids`, `admin_notes`, `created_at`, `updated_at`. Note: `email`, `full_name`, `phone`, `is_suspended` were dropped during Dashboard schema evolution.
@@ -216,6 +240,12 @@
 | 017 | `017_profiles_public_read_rls.sql` | RLS: allow authenticated users to read all profiles rows (fixes bid history showing Anonymous) |
 | 018 | `018_admin_payments_update_rls.sql` | RLS: reinstate admin UPDATE policy on payments (fixes verify/reject in admin panel) |
 | 019 | `019_admin_profiles_update_rls.sql` | RLS: reinstate admin UPDATE policy on profiles (fixes suspend/unsuspend and role changes silently no-op'ing) |
+| 020 | `020_payment_delivery_and_notifications.sql` | Payment delivery lifecycle columns + notifications for the self-service checkout overhaul |
+| 021 | `021_sync_profile_win_counts.sql` | Trigger to keep `profiles.completed_wins`/`unpaid_wins` in sync with `payments`; backfills existing profiles |
+| 022 | `022_courier_tracking_and_collection_pin.sql` | `courier` + `collection_pin` columns on `payments`, `'collected'` payment status value |
+| 023 | `023_dispatched_delivered_status_and_auto_deliver_cron.sql` | `dispatched_at` column, `'dispatched'`/`'delivered'` payment status values, auto-mark-delivered pg_cron job (14 days) |
+| 024 | `024_delivered_and_win_emails.sql` | `payments.win_email_sent_at` column, unschedules the raw pg_cron auto-deliver job in favor of the Vercel Cron endpoint that also sends email |
+| 025 | `025_win_email_sent_boolean.sql` | `payments.win_email_sent` boolean for atomic claim-and-flip win-email dedup |
 
 ---
 
@@ -228,8 +258,9 @@
 - [x] Bidding (whole numbers only, min-increment enforced in DB trigger)
 - [x] Watchlist
 - [x] Notifications page (outbid notifications auto mark as read on View click; won-bid notifications stay unread as payment reminder)
-- [x] Payment flow: per-zone shipping fee (West/East Malaysia), self-collection option, inline bank details, WhatsApp payment button with pre-filled auction details + payment page URL, receipt upload with filename confirmation
-- [x] East Malaysia no-shipping: WhatsApp button with full auction + winner details pre-filled
+- [x] Payment flow (fully self-service, no WhatsApp step): per-zone shipping fee (West/East Malaysia), self-collection date/time slot picker, inline bank transfer details, payment screenshot upload with preview, payment success page with order summary/receiver info/billing details
+- [x] Courier tracking (SPX Express, NinjaVan, LineClear) with correct per-courier tracking links; self-collection PIN verification; Dispatched/Delivered statuses with 14-day auto-deliver via `pg_cron`
+- [x] Branded HTML email notifications (admin + customer) for every payment lifecycle event: submitted, verified, rejected, dispatched, collected/delivered, and won (dual-triggered + cron backstop, dedup'd via `win_email_sent`)
 - [x] Profile page: username (read-only), full name, phone/WhatsApp, shipping address manager (add/edit/delete/default)
 - [x] Password show/hide toggle on login and register forms
 - [x] Suspension wall (`/suspended`): shows reason, expiry, WhatsApp appeal link; auto-lifts expired temp suspensions; realtime redirect if suspended mid-session; blocks every page via server-side layout swap; blurred/dimmed homepage backdrop behind the notice card with a logo-only, nav-free topbar; only Contact Us and Logout reachable
@@ -264,7 +295,6 @@
 - [ ] Terms of Service and Privacy Policy pages (currently stubs)
 
 ### Nice to Have After Launch
-- [ ] Winner email notifications (Supabase email not wired beyond auth emails)
 - [ ] Search / filter / sort on auction list page
 - [ ] Admin — category CRUD page
 - [ ] Admin — blacklist management UI
@@ -300,6 +330,6 @@ All values are in `.env.local`. For Vercel deployment, set these in the Vercel p
 - [ ] Update Supabase Auth `site_url` and redirect URLs to production domain
 - [ ] Confirm pg_cron job is enabled and running in Supabase dashboard
 - [ ] Configure Supabase Auth SMTP / email templates for production
-- [ ] Apply all migrations (001–019) via Supabase SQL Editor
+- [ ] Apply all migrations (001–025) via Supabase SQL Editor
 - [ ] Create storage buckets `auction-images` and `payment-receipts` (public read)
 - [ ] Seed at least one admin user (set `role = 'admin'` in profiles table)
