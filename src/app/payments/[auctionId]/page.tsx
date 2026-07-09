@@ -48,6 +48,108 @@ const emptyAddress = {
   is_default: false,
 };
 
+type AddressFormValue = typeof emptyAddress;
+
+function toAddressFormValue(addr: ShippingAddress): AddressFormValue {
+  return {
+    label: addr.label,
+    recipient_name: addr.recipient_name,
+    phone: addr.phone ?? "",
+    address_line1: addr.address_line1,
+    address_line2: addr.address_line2 ?? "",
+    city: addr.city,
+    state: addr.state,
+    postal_code: addr.postal_code,
+    country: addr.country,
+    is_default: addr.is_default,
+  };
+}
+
+function validateAddressFields(addr: AddressFormValue): string | null {
+  if (
+    !addr.label ||
+    !addr.recipient_name ||
+    !addr.phone ||
+    !addr.address_line1 ||
+    !addr.city ||
+    !addr.state ||
+    !addr.postal_code
+  ) {
+    return "Please fill in all required address fields";
+  }
+  return null;
+}
+
+function AddressFieldsForm({
+  value,
+  onChange,
+}: {
+  value: AddressFormValue;
+  onChange: (next: AddressFormValue) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Select
+        label="Label"
+        value={value.label}
+        onChange={(e) => onChange({ ...value, label: e.target.value })}
+        options={[
+          { value: "", label: "Select Label" },
+          ...ADDRESS_LABELS.map((l) => ({ value: l, label: l })),
+        ]}
+        required
+      />
+      <Input
+        label="Recipient Name"
+        value={value.recipient_name}
+        onChange={(e) => onChange({ ...value, recipient_name: e.target.value })}
+        required
+      />
+      <Input
+        label="Phone"
+        value={value.phone}
+        onChange={(e) => onChange({ ...value, phone: e.target.value })}
+        required
+      />
+      <Input
+        label="Address Line 1"
+        value={value.address_line1}
+        onChange={(e) => onChange({ ...value, address_line1: e.target.value })}
+        required
+        className="sm:col-span-2"
+      />
+      <Input
+        label="Address Line 2"
+        value={value.address_line2}
+        onChange={(e) => onChange({ ...value, address_line2: e.target.value })}
+        className="sm:col-span-2"
+      />
+      <Input
+        label="City"
+        value={value.city}
+        onChange={(e) => onChange({ ...value, city: e.target.value })}
+        required
+      />
+      <Select
+        label="State"
+        value={value.state}
+        onChange={(e) => onChange({ ...value, state: e.target.value })}
+        options={[
+          { value: "", label: "Select State" },
+          ...MALAYSIA_STATES.map((s) => ({ value: s, label: s })),
+        ]}
+        required
+      />
+      <Input
+        label="Postal Code"
+        value={value.postal_code}
+        onChange={(e) => onChange({ ...value, postal_code: e.target.value })}
+        required
+      />
+    </div>
+  );
+}
+
 export default function PaymentDetailPage() {
   const { auctionId } = useParams<{ auctionId: string }>();
   const [userId, setUserId] = useState("");
@@ -67,6 +169,8 @@ export default function PaymentDetailPage() {
   const [collectionRemarks, setCollectionRemarks] = useState("");
   const [addressConfirmed, setAddressConfirmed] = useState(false);
   const [confirmedAddress, setConfirmedAddress] = useState<ShippingAddress | null>(null);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editAddress, setEditAddress] = useState<AddressFormValue>(emptyAddress);
   const [addressSaving, setAddressSaving] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [error, setError] = useState("");
@@ -119,7 +223,8 @@ export default function PaymentDetailPage() {
         supabase
           .from("shipping_addresses")
           .select("*")
-          .eq("user_id", user.id),
+          .eq("user_id", user.id)
+          .eq("is_active", true),
       ]);
 
       if (pay) {
@@ -164,16 +269,9 @@ export default function PaymentDetailPage() {
 
     let finalState: string | undefined;
     if (isAddingNewAddress) {
-      if (
-        !newAddress.label ||
-        !newAddress.recipient_name ||
-        !newAddress.phone ||
-        !newAddress.address_line1 ||
-        !newAddress.city ||
-        !newAddress.state ||
-        !newAddress.postal_code
-      ) {
-        setError("Please fill in all required address fields");
+      const validationError = validateAddressFields(newAddress);
+      if (validationError) {
+        setError(validationError);
         return;
       }
       finalState = newAddress.state;
@@ -205,6 +303,71 @@ export default function PaymentDetailPage() {
       setConfirmedAddress(selectedSavedAddress);
     }
 
+    setAddressConfirmed(true);
+  }
+
+  async function saveAddressEdits() {
+    if (!confirmedAddress) return;
+    setError("");
+
+    const validationError = validateAddressFields(editAddress);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    if (resolveZone(editAddress.state) === "east" && auction?.ships_to_east === false) {
+      setError(EAST_UNAVAILABLE_NOTICE);
+      return;
+    }
+
+    setAddressSaving(true);
+
+    const { data: usedPayments, error: usedError } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("shipping_address_id", confirmedAddress.id)
+      .limit(1);
+
+    if (usedError) {
+      setAddressSaving(false);
+      setError(usedError.message);
+      return;
+    }
+
+    const wasUsedBefore = (usedPayments?.length ?? 0) > 0;
+
+    if (wasUsedBefore) {
+      const { data: savedAddress, error: insertError } = await supabase
+        .from("shipping_addresses")
+        .insert({ ...editAddress, user_id: userId })
+        .select()
+        .single();
+      setAddressSaving(false);
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
+      setAddresses((prev) => [...prev, savedAddress]);
+      setAddressSelection(savedAddress.id.toString());
+      setConfirmedAddress(savedAddress);
+    } else {
+      const { data: updatedAddress, error: updateError } = await supabase
+        .from("shipping_addresses")
+        .update(editAddress)
+        .eq("id", confirmedAddress.id)
+        .select()
+        .single();
+      setAddressSaving(false);
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+      setAddresses((prev) => prev.map((a) => (a.id === confirmedAddress.id ? updatedAddress : a)));
+      setConfirmedAddress(updatedAddress);
+    }
+
+    setIsEditingAddress(false);
     setAddressConfirmed(true);
   }
 
@@ -412,6 +575,10 @@ export default function PaymentDetailPage() {
                     <span className="font-medium">{auction?.auction_number}</span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-500">Winning Bid</span>
+                    <span className="font-medium">{formatCurrency(payment.winning_bid)}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-500">Shipping Fee</span>
                     <span>
                       {isCollection ? (
@@ -440,17 +607,52 @@ export default function PaymentDetailPage() {
 
               {!isCollection && (
                 <div className="space-y-3">
-                  {addressConfirmed ? (
-                    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
-                      <div className="flex items-center justify-between">
-                        <p className="font-semibold text-gray-700">Delivery Address</p>
-                        <button
+                  {addressConfirmed && isEditingAddress ? (
+                    <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                      <p className="text-sm font-semibold text-gray-700">Edit Delivery Address</p>
+                      <AddressFieldsForm value={editAddress} onChange={setEditAddress} />
+                      <div className="flex gap-2">
+                        <Button
                           type="button"
-                          onClick={() => setAddressConfirmed(false)}
-                          className="text-sm font-medium text-brand-600 hover:underline"
+                          loading={addressSaving}
+                          onClick={saveAddressEdits}
+                          className="flex-1"
                         >
-                          Change Address
-                        </button>
+                          Save Changes
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsEditingAddress(false)}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : addressConfirmed ? (
+                    <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-gray-700">Delivery Address</p>
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirmedAddress) setEditAddress(toAddressFormValue(confirmedAddress));
+                              setIsEditingAddress(true);
+                            }}
+                            className="text-sm font-medium text-brand-600 hover:underline"
+                          >
+                            Edit Address
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAddressConfirmed(false)}
+                            className="text-sm font-medium text-brand-600 hover:underline"
+                          >
+                            Change Address
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-1 text-gray-600">
                         <p>
@@ -490,66 +692,23 @@ export default function PaymentDetailPage() {
                         ]}
                       />
 
-                      {isAddingNewAddress && (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Select
-                            label="Label"
-                            value={newAddress.label}
-                            onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                            options={[
-                              { value: "", label: "Select Label" },
-                              ...ADDRESS_LABELS.map((l) => ({ value: l, label: l })),
-                            ]}
-                            required
-                          />
-                          <Input
-                            label="Recipient Name"
-                            value={newAddress.recipient_name}
-                            onChange={(e) => setNewAddress({ ...newAddress, recipient_name: e.target.value })}
-                            required
-                          />
-                          <Input
-                            label="Phone"
-                            value={newAddress.phone}
-                            onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                            required
-                          />
-                          <Input
-                            label="Address Line 1"
-                            value={newAddress.address_line1}
-                            onChange={(e) => setNewAddress({ ...newAddress, address_line1: e.target.value })}
-                            required
-                            className="sm:col-span-2"
-                          />
-                          <Input
-                            label="Address Line 2"
-                            value={newAddress.address_line2}
-                            onChange={(e) => setNewAddress({ ...newAddress, address_line2: e.target.value })}
-                            className="sm:col-span-2"
-                          />
-                          <Input
-                            label="City"
-                            value={newAddress.city}
-                            onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
-                            required
-                          />
-                          <Select
-                            label="State"
-                            value={newAddress.state}
-                            onChange={(e) => setNewAddress({ ...newAddress, state: e.target.value })}
-                            options={[
-                              { value: "", label: "Select State" },
-                              ...MALAYSIA_STATES.map((s) => ({ value: s, label: s })),
-                            ]}
-                            required
-                          />
-                          <Input
-                            label="Postal Code"
-                            value={newAddress.postal_code}
-                            onChange={(e) => setNewAddress({ ...newAddress, postal_code: e.target.value })}
-                            required
-                          />
+                      {!isAddingNewAddress && selectedSavedAddress && (
+                        <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+                          <p className="font-medium text-gray-700">
+                            {selectedSavedAddress.label} — {selectedSavedAddress.recipient_name}
+                          </p>
+                          <p>{selectedSavedAddress.phone}</p>
+                          <p>{selectedSavedAddress.address_line1}</p>
+                          {selectedSavedAddress.address_line2 && <p>{selectedSavedAddress.address_line2}</p>}
+                          <p>
+                            {selectedSavedAddress.city}, {selectedSavedAddress.state}{" "}
+                            {selectedSavedAddress.postal_code}
+                          </p>
                         </div>
+                      )}
+
+                      {isAddingNewAddress && (
+                        <AddressFieldsForm value={newAddress} onChange={setNewAddress} />
                       )}
 
                       {eastUnavailable && (

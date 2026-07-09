@@ -119,7 +119,7 @@ export async function POST(request: Request) {
     const { data: payment, error: paymentError } = await service
       .from("payments")
       .select(
-        "*, auction:auctions(title, auction_number, shipping_type, shipping_fee_west, shipping_fee_east), shipping_address:shipping_addresses(state, recipient_name, phone)"
+        "*, auction:auctions(title, auction_number, shipping_type, shipping_fee_west, shipping_fee_east, ships_to_west, ships_to_east), shipping_address:shipping_addresses(state, recipient_name, phone)"
       )
       .eq("id", paymentId)
       .single();
@@ -384,6 +384,8 @@ export async function POST(request: Request) {
           shippingType: payment.auction?.shipping_type ?? null,
           shippingFeeWest: payment.auction?.shipping_fee_west ?? null,
           shippingFeeEast: payment.auction?.shipping_fee_east ?? null,
+          shipsToWest: payment.auction?.ships_to_west ?? true,
+          shipsToEast: payment.auction?.ships_to_east ?? true,
           paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
         });
         const result = await sendEmail({ to: winnerEmail, subject, text, html });
@@ -409,6 +411,8 @@ export async function POST(request: Request) {
           shippingType: payment.auction?.shipping_type ?? null,
           shippingFeeWest: payment.auction?.shipping_fee_west ?? null,
           shippingFeeEast: payment.auction?.shipping_fee_east ?? null,
+          shipsToWest: payment.auction?.ships_to_west ?? true,
+          shipsToEast: payment.auction?.ships_to_east ?? true,
           totalAmount: payment.total_amount,
           paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
         });

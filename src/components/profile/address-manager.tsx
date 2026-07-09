@@ -32,12 +32,14 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setSuccess("");
     setLoading(true);
 
     const { data, error: insertError } = await supabase
@@ -73,20 +75,23 @@ export function AddressManager({ addresses: initial, userId }: AddressManagerPro
 
   async function remove(id: number) {
     setError("");
-    const { error: deleteError } = await supabase
+    setSuccess("");
+    const { error: updateError } = await supabase
       .from("shipping_addresses")
-      .delete()
+      .update({ is_active: false })
       .eq("id", id);
-    if (deleteError) {
-      setError(deleteError.message);
+    if (updateError) {
+      setError(updateError.message);
       return;
     }
     setAddresses((prev) => prev.filter((a) => a.id !== id));
+    setSuccess("Address removed successfully");
   }
 
   return (
     <div className="space-y-4">
       {error && <Alert variant="error">{error}</Alert>}
+      {success && <Alert variant="success">{success}</Alert>}
       {addresses.map((addr) => (
         <Card key={addr.id}>
           <CardContent className="flex items-start justify-between py-4">

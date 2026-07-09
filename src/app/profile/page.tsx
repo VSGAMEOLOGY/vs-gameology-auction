@@ -19,6 +19,7 @@ export default async function ProfilePage() {
     .from("shipping_addresses")
     .select("*")
     .eq("user_id", user.id)
+    .eq("is_active", true)
     .order("is_default", { ascending: false });
 
   if (!profile) {

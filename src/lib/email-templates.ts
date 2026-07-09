@@ -110,6 +110,30 @@ function baseSummaryRows(
   ];
 }
 
+function buildShippingOptionsLabel({
+  shippingType,
+  shippingFeeWest,
+  shippingFeeEast,
+  shipsToWest,
+  shipsToEast,
+}: {
+  shippingType: string | null;
+  shippingFeeWest: number | null;
+  shippingFeeEast: number | null;
+  shipsToWest: boolean;
+  shipsToEast: boolean;
+}) {
+  const options: string[] = [];
+  if (shippingType !== "collection") {
+    if (shipsToWest) options.push(`West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)}`);
+    if (shipsToEast) options.push(`East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`);
+  }
+  if (shippingType === "collection" || shippingType === "both") {
+    options.push("Self Collection: FREE");
+  }
+  return options.join(" / ");
+}
+
 function receiverRows(receiverName: string, receiverPhone: string): [string, string][] {
   return [
     ["Receiver Name", receiverName],
@@ -409,6 +433,8 @@ export function buildPaymentReminderEmail({
   shippingType,
   shippingFeeWest,
   shippingFeeEast,
+  shipsToWest,
+  shipsToEast,
   totalAmount,
   paymentUrl,
 }: {
@@ -419,13 +445,18 @@ export function buildPaymentReminderEmail({
   shippingType: string | null;
   shippingFeeWest: number | null;
   shippingFeeEast: number | null;
+  shipsToWest: boolean;
+  shipsToEast: boolean;
   totalAmount: number;
   paymentUrl: string;
 }) {
-  const shippingOptionsLabel =
-    shippingType === "collection"
-      ? "Self Collection only"
-      : `West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)} / East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`;
+  const shippingOptionsLabel = buildShippingOptionsLabel({
+    shippingType,
+    shippingFeeWest,
+    shippingFeeEast,
+    shipsToWest,
+    shipsToEast,
+  });
   const message =
     "this is a friendly reminder that you have a pending payment for your winning bid. Please complete your payment as soon as possible to secure your item.";
 
@@ -470,6 +501,8 @@ export function buildAuctionWonEmail({
   shippingType,
   shippingFeeWest,
   shippingFeeEast,
+  shipsToWest,
+  shipsToEast,
   paymentUrl,
 }: {
   username: string;
@@ -479,12 +512,17 @@ export function buildAuctionWonEmail({
   shippingType: string | null;
   shippingFeeWest: number | null;
   shippingFeeEast: number | null;
+  shipsToWest: boolean;
+  shipsToEast: boolean;
   paymentUrl: string;
 }) {
-  const shippingOptionsLabel =
-    shippingType === "collection"
-      ? "Self Collection only"
-      : `West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)} / East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`;
+  const shippingOptionsLabel = buildShippingOptionsLabel({
+    shippingType,
+    shippingFeeWest,
+    shippingFeeEast,
+    shipsToWest,
+    shipsToEast,
+  });
 
   const bodyHtml = `
     <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, congratulations! You have won the auction for ${escapeHtml(auctionTitle)}. Your winning bid was ${formatCurrency(winningBid)}. Please proceed to complete your payment.</p>
