@@ -20,6 +20,24 @@
 
 ## Session Log
 
+### Session Complete — 9 July 2026 (tag: `v1.1-payment-fixes`)
+
+**Payment resubmission tracking, rejection notifications, and checkout UI gating — building on v1.0:**
+- Payment rejection now sends both an email (full order summary, "Resubmit Payment" button linking to `/payments/[auctionId]`, and a green WhatsApp "Contact Us" button) and a website notification to the customer — previously nothing was sent to the customer on rejection at all
+- WhatsApp pre-filled messages (rejection email and the customer payment page) now use `%0A` line breaks in the exact requested multi-line format and include the shipping fee amount — previously a single unbroken sentence with the shipping fee missing
+- `/watchlist` cards now have a heart/remove button (new `WatchlistGrid` client component) that unwatches instantly without navigating into the auction or refreshing the page
+- Auction detail page bidders count: `auctions.unique_bidder_count` was confirmed via direct DB query to be permanently stuck at `0` for every auction (broken/never-updated cached column) while `bid_count` was also unreliable; both are now computed live from the `bids` table with a realtime subscription instead of trusting the cached columns
+- Payment resubmission counter: `payments.resubmission_count` (migration 028) increments only when a user resubmits after a rejection (never on first submission); shown as an orange "Resubmission #N" badge on `/admin/payments` next to the status badge
+- First submission vs. resubmission is now differentiated everywhere: the admin email subject/intro ("New Payment Submitted" vs "Payment Resubmitted") and the admin website notification title/message, both driven by `resubmission_count > 0`
+- `/payments/[auctionId]` checkout gating: "Upload Payment Screenshot" and "Submit Payment Proof" now stay hidden until the delivery method is fully resolved — a confirmed address for shipping orders, or a chosen collection date/time slot for self collection (no shipping fee to calculate there) — and re-hide (along with Bank Transfer Details) while "Edit Address" is open, only reappearing once "Save Changes" re-confirms
+- Delivery address dropdown option text now includes Address Line 2 when present (was silently dropped from the dropdown label, though already shown correctly in the preview below it)
+
+**Migrations applied this session:** 028 (see Migration History table)
+
+**Note:** confirmed `payments.resubmission_count` (028) exists in the live database via direct query. Also discovered during this session that the Vercel project's GitHub auto-deploy webhook can silently miss a push (one commit had no corresponding deployment despite every other push deploying within ~1 minute) — worth spot-checking the Vercel deployments list after a push rather than assuming it always fires.
+
+---
+
 ### Session Complete — 9 July 2026 (tag: `v1.0-payment-complete`)
 
 **Payment page address flow + admin visibility — building on the v0.9 payment flow overhaul:**
@@ -205,7 +223,7 @@
 
 ---
 
-## Database Schema (27 migrations applied)
+## Database Schema (28 migrations applied)
 
 ### Tables
 - **profiles** — live columns: `id`, `username` (unique), `real_name`, `whatsapp`, `role` (user/admin), `status` (active/suspended), `verification_status`, `completed_wins`, `unpaid_wins`, `total_bids`, `admin_notes`, `created_at`, `updated_at`. Note: `email`, `full_name`, `phone`, `is_suspended` were dropped during Dashboard schema evolution.
@@ -214,7 +232,7 @@
 - **auctions** — `title`, `description`, `cover_photo_url`, `gallery_photos[]`, `starting_price`, `current_bid`, `minimum_increment`, `reserve_price`, `status` (draft/scheduled/active/ended/cancelled), `start_at`/`end_at`, `shipping_type` (shipping/collection/both), `shipping_fee_west`, `shipping_fee_east`, `ships_to_west`, `ships_to_east`, `category_id`, `condition`, `region`, `languages[]`, `winner_user_id`, `auction_number`
 - **bids** — `auction_id`, `bidder_id`, `bid_amount` (whole numbers), `is_winning`
 - **watchlist** — user watchlist entries
-- **payments** — `auction_id`, `winner_user_id`, `winning_bid`, `shipping_fee`, `total_amount`, `payment_status` (pending/submitted/verified/rejected/refunded), `receipt_url`, `fulfillment_type`, `shipping_address_id`, `payment_due_at`, `admin_notes`, `verified_by`, `verified_at`
+- **payments** — `auction_id`, `winner_user_id`, `winning_bid`, `shipping_fee`, `total_amount`, `payment_status` (pending/submitted/verified/rejected/refunded), `receipt_url`, `fulfillment_type`, `shipping_address_id`, `payment_due_at`, `admin_notes`, `verified_by`, `verified_at`, `resubmission_count` (increments only on resubmission after rejection, migration 028)
 - **notifications** — `user_id`, `notification_type`, `title`, `message`, `related_auction_id`, `is_read`
 - **admin_activity_logs** — audit trail; columns: `admin_id`, `action`, `entity_type`, `entity_id`, `details`, `created_at`
 - **suspension_history** — legacy; superseded by `user_suspensions`
@@ -265,6 +283,7 @@
 | 025 | `025_win_email_sent_boolean.sql` | `payments.win_email_sent` boolean for atomic claim-and-flip win-email dedup |
 | 026 | `026_payment_reminder_sent_at.sql` | `payments.payment_reminder_sent_at` timestamp for the admin "Send Payment Reminder" button (24h+ pending) dedup/display |
 | 027 | `027_shipping_address_soft_delete.sql` | `shipping_addresses.is_active` boolean so deleting an address soft-deletes it instead of hitting the FK on past `payments.shipping_address_id` rows |
+| 028 | `028_payment_resubmission_count.sql` | `payments.resubmission_count` integer (default 0), incremented only when a rejected payment is resubmitted; powers the "Resubmission #N" admin badge and the resubmission email/notification wording |
 
 ---
 
@@ -275,9 +294,10 @@
 - [x] Auction list with live status badges, countdown timers, realtime updates
 - [x] Auction detail page: gallery + lightbox, bid history (shows usernames publicly), live countdown, realtime price/status
 - [x] Bidding (whole numbers only, min-increment enforced in DB trigger)
-- [x] Watchlist
+- [x] Watchlist (remove button directly on each card, no navigation/refresh needed)
 - [x] Notifications page (outbid notifications auto mark as read on View click; won-bid notifications stay unread as payment reminder)
-- [x] Payment flow (fully self-service, no WhatsApp step): explicit address confirm/edit step (pick or add an address → confirm → read-only summary with Change/Edit Address) before the zone-aware shipping fee (West/East Malaysia), self-collection date/time slot picker, inline bank transfer details, payment screenshot upload with preview, payment success page with order summary (incl. Winning Bid)/receiver info/billing details
+- [x] Payment flow (fully self-service, no WhatsApp step): explicit address confirm/edit step (pick or add an address → confirm → read-only summary with Change/Edit Address) before the zone-aware shipping fee (West/East Malaysia), self-collection date/time slot picker, inline bank transfer details, payment screenshot upload with preview, payment success page with order summary (incl. Winning Bid)/receiver info/billing details; upload and submit stay hidden until the delivery method is fully confirmed (address or collection slot), and re-hide while editing an already-confirmed address
+- [x] Payment rejection flow: email (order summary, "Resubmit Payment" button, WhatsApp "Contact Us" button) + website notification to the customer; rejected-status page shows a "Resubmit Payment" button that resets the form for a new screenshot and its own WhatsApp contact button; resubmissions are counted (`resubmission_count`) and flagged to admins via a differentiated email/notification and a "Resubmission #N" badge
 - [x] Courier tracking (SPX Express, NinjaVan, LineClear) with correct per-courier tracking links; self-collection PIN verification; Dispatched/Delivered statuses with 14-day auto-deliver via `pg_cron`
 - [x] Branded HTML email notifications (admin + customer) for every payment lifecycle event: submitted, verified, rejected, dispatched, collected/delivered, and won (dual-triggered + cron backstop, dedup'd via `win_email_sent`); win/reminder emails list every fulfillment option that applies to the auction (West/East Malaysia + Self Collection: FREE, each on its own line)
 - [x] Profile page: username (read-only), full name, phone/WhatsApp, shipping address manager (add/edit/soft-delete/default)
@@ -298,7 +318,7 @@
 - [x] Auction form: title, description, photos, category, condition, region, language, shipping type, per-zone fees, per-zone availability, starting price, increment, reserve, start/end times
 - [x] Schedule preview page
 - [x] User management: list users, suspend (temp/permanent with reason), unsuspend, search by name/username, suspension count badge (total times suspended) — status/role updates now persist correctly (migration 019) and enforcement blocks the user immediately
-- [x] Payment management: view submitted payments, verify/reject (tab switches to Verified/Rejected after action), add admin notes, expandable auction detail dropdown, expandable winner detail dropdown (name/WhatsApp/email, win counts, and suspension count highlighted red if 1+); Pending tab shows a win-email status badge with a "Resend Win Email" button and a "Send Payment Reminder" button once a payment has been pending 24h+
+- [x] Payment management: view submitted payments, verify/reject (tab switches to Verified/Rejected after action; reject now emails + notifies the customer), add admin notes, expandable auction detail dropdown, expandable winner detail dropdown (name/WhatsApp/email, win counts, and suspension count highlighted red if 1+); Pending tab shows a win-email status badge with a "Resend Win Email" button and a "Send Payment Reminder" button once a payment has been pending 24h+; an orange "Resubmission #N" badge appears next to the status badge for repeat resubmitters
 - [x] Suspensions management page: auto-lifts expired suspensions on page load, only shows truly active suspensions (permanent or future-dated)
 - [x] Activity logs page
 
@@ -349,6 +369,6 @@ All values are in `.env.local`. For Vercel deployment, set these in the Vercel p
 - [ ] Update Supabase Auth `site_url` and redirect URLs to production domain
 - [ ] Confirm pg_cron job is enabled and running in Supabase dashboard
 - [ ] Configure Supabase Auth SMTP / email templates for production
-- [ ] Apply all migrations (001–027) via Supabase SQL Editor
+- [ ] Apply all migrations (001–028) via Supabase SQL Editor
 - [ ] Create storage buckets `auction-images` and `payment-receipts` (public read)
 - [ ] Seed at least one admin user (set `role = 'admin'` in profiles table)
