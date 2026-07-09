@@ -13,7 +13,7 @@ import {
   buildAuctionWonEmail,
   buildPaymentReminderEmail,
 } from "@/lib/email-templates";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { formatShippingFeeLabel, resolveReceiverInfo } from "@/lib/shipping";
 
 type NotifyEvent =
@@ -205,8 +205,10 @@ export async function POST(request: Request) {
           admins.map((admin) => ({
             user_id: admin.id,
             notification_type: "payment_submitted",
-            title: "New Payment Submitted",
-            message: `${username} submitted payment of ${formatCurrency(payment.total_amount)} for ${auctionTitle}.`,
+            title: isResubmission ? "Payment Resubmitted" : "New Payment Submitted",
+            message: isResubmission
+              ? `${username} has resubmitted their payment for ${auctionTitle} after a previous rejection. Please review and verify.`
+              : `New payment submitted for ${auctionTitle} by ${username}. Please review and verify.`,
             related_auction_id: payment.auction_id,
           }))
         );
