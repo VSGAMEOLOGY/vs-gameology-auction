@@ -480,7 +480,7 @@ export default function PaymentDetailPage() {
       : null
     : payment.total_amount;
 
-  const readyForPayment = showForm && !eastUnavailable && shippingFeeKnown;
+  const readyForPayment = showForm && !eastUnavailable && shippingFeeKnown && !isEditingAddress;
   const today = new Date().toISOString().slice(0, 10);
 
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL ||
