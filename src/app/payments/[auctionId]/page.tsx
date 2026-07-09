@@ -264,7 +264,9 @@ export default function PaymentDetailPage() {
   // resolved: a confirmed address (so the shipping fee is known) for
   // shipping orders, or a chosen collection date/time slot for self
   // collection orders (which have no shipping fee to calculate).
-  const canUpload = isCollection ? Boolean(collectionDate && collectionTimeSlot) : addressConfirmed;
+  const canUpload = isCollection
+    ? Boolean(collectionDate && collectionTimeSlot)
+    : addressConfirmed && !isEditingAddress;
 
   async function confirmAddress() {
     setError("");
