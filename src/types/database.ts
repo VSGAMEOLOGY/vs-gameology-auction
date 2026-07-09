@@ -163,6 +163,7 @@ export interface Payment {
   admin_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;
+  resubmission_count: number;
   created_at: string;
   updated_at: string;
   auction?: Auction;

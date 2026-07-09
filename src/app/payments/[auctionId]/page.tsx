@@ -402,6 +402,7 @@ export default function PaymentDetailPage() {
 
     const shippingAddressId = isCollection ? null : Number(addressSelection);
     const shippingFee = isCollection ? 0 : resolvedShippingFee ?? 0;
+    const wasRejected = payment.payment_status === "rejected";
 
     const updates: Partial<Payment> = {
       receipt_url: proofUrl,
@@ -417,6 +418,7 @@ export default function PaymentDetailPage() {
             collection_remarks: collectionRemarks || null,
           }
         : {}),
+      ...(wasRejected ? { resubmission_count: (payment.resubmission_count ?? 0) + 1 } : {}),
     };
 
     const { error: updateError } = await supabase

@@ -874,6 +874,11 @@ export default function AdminPaymentsPage() {
                       >
                         {payment.payment_status}
                       </Badge>
+                      {payment.resubmission_count >= 1 && (
+                        <Badge variant="warning" className="bg-orange-100 text-orange-800">
+                          Resubmission #{payment.resubmission_count}
+                        </Badge>
+                      )}
                       {payment.payment_status === "submitted" && (
                         <>
                           <Button size="sm" onClick={() => verifyPayment(payment, true)}>

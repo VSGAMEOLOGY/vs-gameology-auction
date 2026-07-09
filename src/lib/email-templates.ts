@@ -171,6 +171,7 @@ export function buildPaymentSubmittedEmail({
   username,
   submittedAt,
   adminPanelUrl,
+  isResubmission,
 }: {
   auctionTitle: string;
   auctionNumber: string;
@@ -180,23 +181,29 @@ export function buildPaymentSubmittedEmail({
   username: string;
   submittedAt: string;
   adminPanelUrl: string;
+  isResubmission: boolean;
 }) {
+  const intro = isResubmission
+    ? "A winner has resubmitted their payment proof after a previous rejection. Please review and verify."
+    : "A winner has submitted their payment proof for the following order. Please review and verify.";
+
   const bodyHtml = `
-    <p style="margin:0 0 8px;font-size:14px;color:#374151;">A customer has submitted payment for review.</p>
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">${intro}</p>
     ${summaryTable([
       ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
       ["Total Amount", formatCurrency(totalAmount)],
       ["Winner Username", username],
       ["Submission Time", submittedAt],
     ])}
-    <p style="margin:16px 0 0;font-size:14px;color:#374151;">Please review and verify this payment in the admin panel.</p>
     ${buttonHtml(adminPanelUrl, "View Payment in Admin Panel")}
   `;
 
   return {
-    subject: `New Payment Submitted - ${auctionTitle} - ${username}`,
+    subject: isResubmission
+      ? `Payment Resubmitted - ${auctionTitle} - ${username}`
+      : `New Payment Submitted - ${auctionTitle} - ${username}`,
     text: [
-      "A customer has submitted payment for review.",
+      intro,
       "",
       `Auction: ${auctionTitle}`,
       `Auction No: ${auctionNumber}`,
@@ -206,11 +213,10 @@ export function buildPaymentSubmittedEmail({
       `Winner: ${username}`,
       `Submitted At: ${submittedAt}`,
       "",
-      "Please review and verify this payment in the admin panel.",
       `View in admin panel: ${adminPanelUrl}`,
     ].join("\n"),
     html: emailShell({
-      heading: "New Payment Received",
+      heading: isResubmission ? "Payment Resubmitted" : "New Payment Received",
       bodyHtml,
       footerText: "VS GAMEOLOGY Auction Platform",
     }),

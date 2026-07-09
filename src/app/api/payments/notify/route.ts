@@ -168,6 +168,7 @@ export async function POST(request: Request) {
     let notified = false;
 
     if (event === "submitted") {
+      const isResubmission = (payment.resubmission_count ?? 0) > 0;
       const adminEmail = process.env.ADMIN_EMAIL;
       if (!adminEmail) {
         console.error("/api/payments/notify: ADMIN_EMAIL env var is not set, skipping admin email");
@@ -181,6 +182,7 @@ export async function POST(request: Request) {
           username,
           submittedAt: formatDate(new Date().toISOString()),
           adminPanelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/admin/payments`,
+          isResubmission,
         });
         const result = await sendEmail({ to: adminEmail, subject, text, html });
         emailSent = result.ok;
