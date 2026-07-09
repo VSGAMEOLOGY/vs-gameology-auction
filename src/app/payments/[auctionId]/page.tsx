@@ -260,6 +260,11 @@ export default function PaymentDetailPage() {
   // Shipping fee is unknown until the user has confirmed a delivery address.
   const shippingFeeKnown = isCollection || addressConfirmed;
   const resolvedShippingFee = isCollection ? 0 : zone === "east" ? auction?.shipping_fee_east ?? 0 : zone === "west" ? auction?.shipping_fee_west ?? 0 : null;
+  // Payment proof can only be uploaded once the delivery method is fully
+  // resolved: a confirmed address (so the shipping fee is known) for
+  // shipping orders, or a chosen collection date/time slot for self
+  // collection orders (which have no shipping fee to calculate).
+  const canUpload = isCollection ? Boolean(collectionDate && collectionTimeSlot) : addressConfirmed;
 
   async function confirmAddress() {
     setError("");
@@ -819,43 +824,48 @@ export default function PaymentDetailPage() {
               )}
 
               <div className="space-y-3 border-t pt-4">
-                <p className="text-sm font-medium text-gray-700">Upload Payment Screenshot</p>
-                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleReceiptChange}
-                    disabled={receiptUploading}
-                    className="hidden"
-                  />
-                  {proofUrl ? (
-                    <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
-                      <Image src={proofUrl} alt="Payment screenshot preview" fill className="object-cover" />
-                    </div>
-                  ) : (
-                    <UploadCloud className="h-8 w-8 text-gray-400" />
-                  )}
-                  <span className="text-sm text-gray-600">
-                    {receiptUploading ? "Uploading…" : "Tap to upload"}
-                  </span>
-                </label>
-                {!receiptUploading && proofUrl && selectedFileName && (
-                  <p className="truncate text-sm text-green-600">✓ {selectedFileName}</p>
-                )}
+                {canUpload ? (
+                  <>
+                    <p className="text-sm font-medium text-gray-700">Upload Payment Screenshot</p>
+                    <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50/40">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleReceiptChange}
+                        disabled={receiptUploading}
+                        className="hidden"
+                      />
+                      {proofUrl ? (
+                        <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                          <Image src={proofUrl} alt="Payment screenshot preview" fill className="object-cover" />
+                        </div>
+                      ) : (
+                        <UploadCloud className="h-8 w-8 text-gray-400" />
+                      )}
+                      <span className="text-sm text-gray-600">
+                        {receiptUploading ? "Uploading…" : "Tap to upload"}
+                      </span>
+                    </label>
+                    {!receiptUploading && proofUrl && selectedFileName && (
+                      <p className="truncate text-sm text-green-600">✓ {selectedFileName}</p>
+                    )}
 
-                <Button
-                  type="submit"
-                  loading={loading}
-                  disabled={
-                    eastUnavailable ||
-                    receiptUploading ||
-                    !proofUrl ||
-                    (!isCollection && !addressConfirmed)
-                  }
-                  className="w-full"
-                >
-                  Submit Payment Proof
-                </Button>
+                    <Button
+                      type="submit"
+                      loading={loading}
+                      disabled={!canUpload || eastUnavailable || receiptUploading || !proofUrl}
+                      className="w-full"
+                    >
+                      Submit Payment Proof
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    {isCollection
+                      ? "Please select a collection date and time slot to continue."
+                      : "Please confirm your delivery address to continue."}
+                  </p>
+                )}
               </div>
             </form>
           )}
