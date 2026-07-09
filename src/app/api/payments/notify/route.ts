@@ -245,7 +245,20 @@ export async function POST(request: Request) {
         if (!winnerEmail) {
           console.error("/api/payments/notify: no email on file for winner, skipping rejected email", payment.winner_user_id);
         } else {
-          const whatsappMessage = `Hi, my payment was rejected for auction ${auctionTitle} (Auction No: ${payment.auction?.auction_number ?? "-"}). Winning Bid: RM${payment.winning_bid.toFixed(2)}. Total: RM${payment.total_amount.toFixed(2)}. Username: ${username}. Email: ${winnerEmail}. Please advise. Thank you.`;
+          const whatsappMessage = [
+            "Hi, my payment was rejected for auction :",
+            "",
+            auctionTitle,
+            `(Auction No: ${payment.auction?.auction_number ?? "-"}).`,
+            `Winning Bid: RM${payment.winning_bid.toFixed(2)}.`,
+            `Shipping : RM${payment.shipping_fee.toFixed(2)}`,
+            `Total: RM${payment.total_amount.toFixed(2)}.`,
+            "",
+            `Username: ${username}`,
+            `Email: ${winnerEmail}`,
+            "",
+            "Please advise. Thank you.",
+          ].join("\n");
           const { subject, text, html } = buildPaymentRejectedEmail({
             username,
             auctionTitle,
