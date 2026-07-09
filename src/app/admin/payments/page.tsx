@@ -57,6 +57,8 @@ export default function AdminPaymentsPage() {
   const [customerEmailErrors, setCustomerEmailErrors] = useState<Record<string, string>>({});
   const [winCounts, setWinCounts] = useState<Record<string, WinCounts>>({});
   const [winCountsError, setWinCountsError] = useState<Record<string, string>>({});
+  const [suspensionCounts, setSuspensionCounts] = useState<Record<string, number>>({});
+  const [suspensionCountsError, setSuspensionCountsError] = useState<Record<string, string>>({});
   const [trackingDrafts, setTrackingDrafts] = useState<Record<number, string>>({});
   const [trackingSaving, setTrackingSaving] = useState<number | null>(null);
   const [courierDrafts, setCourierDrafts] = useState<Record<number, string>>({});
@@ -177,11 +179,35 @@ export default function AdminPaymentsPage() {
     setWinCounts((prev) => ({ ...prev, [userId]: counts }));
   }
 
+  async function loadSuspensionCount(userId: string) {
+    if (userId in suspensionCounts) return;
+    setSuspensionCountsError((prev) => {
+      if (!(userId in prev)) return prev;
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+    const { count, error } = await supabase
+      .from("user_suspensions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Failed to load suspension count:", error);
+      setSuspensionCountsError((prev) => ({ ...prev, [userId]: error.message }));
+      return;
+    }
+    setSuspensionCounts((prev) => ({ ...prev, [userId]: count ?? 0 }));
+  }
+
   function toggleDropdown(payment: PaymentRow, type: "auction" | "winner" | "delivery") {
     setOpenDropdown((prev) => {
       const isOpen = prev?.paymentId === payment.id && prev?.type === type;
       if (!isOpen && (type === "delivery" || type === "winner")) loadCustomerEmail(payment.winner_user_id);
-      if (!isOpen && type === "winner") loadWinCounts(payment.winner_user_id);
+      if (!isOpen && type === "winner") {
+        loadWinCounts(payment.winner_user_id);
+        loadSuspensionCount(payment.winner_user_id);
+      }
       return isOpen ? null : { paymentId: payment.id, type };
     });
   }
@@ -588,6 +614,26 @@ export default function AdminPaymentsPage() {
                               </p>
                             </>
                           )}
+                          <p>
+                            <span className="text-gray-500">Suspensions: </span>
+                            {suspensionCountsError[payment.winner_user_id] ? (
+                              <span className="text-red-500">
+                                Unavailable ({suspensionCountsError[payment.winner_user_id]})
+                              </span>
+                            ) : suspensionCounts[payment.winner_user_id] === undefined ? (
+                              "…"
+                            ) : (
+                              <span
+                                className={
+                                  suspensionCounts[payment.winner_user_id] > 0
+                                    ? "font-semibold text-red-600"
+                                    : undefined
+                                }
+                              >
+                                {suspensionCounts[payment.winner_user_id]}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       )}
 
