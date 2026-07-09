@@ -706,7 +706,7 @@ export default function PaymentDetailPage() {
                           { value: "", label: "Select a delivery address" },
                           ...addresses.map((a) => ({
                             value: a.id.toString(),
-                            label: `${a.label} - ${a.address_line1}, ${a.city}, ${a.state}`,
+                            label: `${a.label} - ${[a.address_line1, a.address_line2, a.city, a.state].filter(Boolean).join(", ")}`,
                           })),
                           { value: "new", label: "+ Add a new address" },
                         ]}
