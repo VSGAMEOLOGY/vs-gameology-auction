@@ -61,14 +61,14 @@ function emailShell({
 </html>`;
 }
 
-function summaryTable(rows: [string, string][]) {
+function summaryTable(rows: [string, string, boolean?][]) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid #e5e7eb;border-radius:6px;">
     ${rows
       .map(
-        ([label, value], i) => `
+        ([label, value, isRawHtml], i) => `
       <tr style="${i % 2 === 1 ? "background-color:#f9fafb;" : ""}">
         <td style="padding:10px 16px;font-size:13px;color:#6b7280;">${escapeHtml(label)}</td>
-        <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;text-align:right;">${escapeHtml(value)}</td>
+        <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:600;text-align:right;">${isRawHtml ? value : escapeHtml(value)}</td>
       </tr>`
       )
       .join("")}
@@ -110,7 +110,7 @@ function baseSummaryRows(
   ];
 }
 
-function buildShippingOptionsLabel({
+function buildShippingOptionsParts({
   shippingType,
   shippingFeeWest,
   shippingFeeEast,
@@ -123,15 +123,26 @@ function buildShippingOptionsLabel({
   shipsToWest: boolean;
   shipsToEast: boolean;
 }) {
-  const options: string[] = [];
+  const shippingParts: string[] = [];
   if (shippingType !== "collection") {
-    if (shipsToWest) options.push(`West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)}`);
-    if (shipsToEast) options.push(`East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`);
+    if (shipsToWest) shippingParts.push(`West Malaysia: ${formatCurrency(shippingFeeWest ?? 0)}`);
+    if (shipsToEast) shippingParts.push(`East Malaysia: ${formatCurrency(shippingFeeEast ?? 0)}`);
   }
-  if (shippingType === "collection" || shippingType === "both") {
-    options.push("Self Collection: FREE");
-  }
-  return options.join(" / ");
+  const shippingLine = shippingParts.length > 0 ? shippingParts.join(" / ") : null;
+  const collectionLine =
+    shippingType === "collection" || shippingType === "both" ? "Self Collection: FREE" : null;
+  return [shippingLine, collectionLine].filter((line): line is string => line !== null);
+}
+
+// HTML value for the summaryTable "Shipping Options" row -- each line is
+// escaped individually, then joined with a real <br> so the shipping
+// zones and self collection render on separate lines within the cell.
+function buildShippingOptionsHtml(lines: string[]) {
+  return lines.map(escapeHtml).join("<br>");
+}
+
+function buildShippingOptionsText(lines: string[]) {
+  return lines.join("\n");
 }
 
 function receiverRows(receiverName: string, receiverPhone: string): [string, string][] {
@@ -450,7 +461,7 @@ export function buildPaymentReminderEmail({
   totalAmount: number;
   paymentUrl: string;
 }) {
-  const shippingOptionsLabel = buildShippingOptionsLabel({
+  const shippingOptionsLines = buildShippingOptionsParts({
     shippingType,
     shippingFeeWest,
     shippingFeeEast,
@@ -466,7 +477,7 @@ export function buildPaymentReminderEmail({
       ["Auction Title", auctionTitle],
       ["Auction Number", auctionNumber],
       ["Winning Bid", formatCurrency(winningBid)],
-      ["Shipping Options", shippingOptionsLabel],
+      ["Shipping Options", buildShippingOptionsHtml(shippingOptionsLines), true],
       ["Total", formatCurrency(totalAmount)],
     ])}
     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Final total will be confirmed once you select your delivery option.</p>
@@ -481,7 +492,7 @@ export function buildPaymentReminderEmail({
       `Auction: ${auctionTitle}`,
       `Auction No: ${auctionNumber}`,
       `Winning Bid: ${formatCurrency(winningBid)}`,
-      `Shipping Options: ${shippingOptionsLabel}`,
+      `Shipping Options: ${buildShippingOptionsText(shippingOptionsLines)}`,
       `Total: ${formatCurrency(totalAmount)}`,
       `Complete payment: ${paymentUrl}`,
     ].join("\n"),
@@ -516,7 +527,7 @@ export function buildAuctionWonEmail({
   shipsToEast: boolean;
   paymentUrl: string;
 }) {
-  const shippingOptionsLabel = buildShippingOptionsLabel({
+  const shippingOptionsLines = buildShippingOptionsParts({
     shippingType,
     shippingFeeWest,
     shippingFeeEast,
@@ -530,7 +541,7 @@ export function buildAuctionWonEmail({
       ["Auction Title", auctionTitle],
       ["Auction Number", auctionNumber],
       ["Winning Bid", formatCurrency(winningBid)],
-      ["Shipping Options", shippingOptionsLabel],
+      ["Shipping Options", buildShippingOptionsHtml(shippingOptionsLines), true],
     ])}
     <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">Final total will be calculated after you select your delivery option.</p>
     ${buttonHtml(paymentUrl, "Complete Payment")}
@@ -541,7 +552,7 @@ export function buildAuctionWonEmail({
     text: [
       `Dear ${username}, congratulations! You have won the auction for ${auctionTitle}.`,
       `Your winning bid was ${formatCurrency(winningBid)}. Please proceed to complete your payment.`,
-      `Shipping Options: ${shippingOptionsLabel}`,
+      `Shipping Options: ${buildShippingOptionsText(shippingOptionsLines)}`,
       "Final total will be calculated after you select your delivery option.",
       `Complete payment: ${paymentUrl}`,
     ].join("\n"),
