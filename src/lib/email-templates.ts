@@ -85,6 +85,16 @@ function buttonHtml(href: string, label: string) {
   </table>`;
 }
 
+function whatsappButtonHtml(href: string, label: string) {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0;">
+    <tr>
+      <td style="border-radius:6px;background-color:#16a34a;">
+        <a href="${href}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:6px;">${escapeHtml(label)}</a>
+      </td>
+    </tr>
+  </table>`;
+}
+
 function highlightBox(label: string, value: string) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background-color:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;">
     <tr>
@@ -284,6 +294,60 @@ export function buildPaymentVerifiedEmail({
     text: textLines.join("\n"),
     html: emailShell({
       heading: "Thank You for Your Payment!",
+      bodyHtml,
+      footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
+    }),
+  };
+}
+
+export function buildPaymentRejectedEmail({
+  username,
+  auctionTitle,
+  auctionNumber,
+  winningBid,
+  shippingFeeLabel,
+  totalAmount,
+  paymentUrl,
+  whatsappUrl,
+}: {
+  username: string;
+  auctionTitle: string;
+  auctionNumber: string;
+  winningBid: number;
+  shippingFeeLabel: string;
+  totalAmount: number;
+  paymentUrl: string;
+  whatsappUrl: string;
+}) {
+  const message =
+    "unfortunately we were unable to verify your payment for the following order. This may be due to an incorrect payment amount, unclear payment screenshot, or payment not received. Please resubmit your payment or contact us for assistance.";
+
+  const bodyHtml = `
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Dear ${escapeHtml(username)}, ${message}</p>
+    ${summaryTable([
+      ...baseSummaryRows(auctionTitle, auctionNumber, winningBid, shippingFeeLabel),
+      ["Total Amount", formatCurrency(totalAmount)],
+    ])}
+    ${buttonHtml(paymentUrl, "Resubmit Payment")}
+    ${whatsappButtonHtml(whatsappUrl, "Contact Us")}
+  `;
+
+  return {
+    subject: `Payment Rejected - ${auctionTitle} - VS GAMEOLOGY`,
+    text: [
+      `Dear ${username}, ${message}`,
+      "",
+      `Auction Title: ${auctionTitle}`,
+      `Auction Number: ${auctionNumber}`,
+      `Winning Bid: ${formatCurrency(winningBid)}`,
+      `Shipping Fee: ${shippingFeeLabel}`,
+      `Total Amount: ${formatCurrency(totalAmount)}`,
+      "",
+      `Resubmit payment: ${paymentUrl}`,
+      `Contact us: ${whatsappUrl}`,
+    ].join("\n"),
+    html: emailShell({
+      heading: "Payment Rejected",
       bodyHtml,
       footerText: "VS GAMEOLOGY Auction Platform | vs.gameology@gmail.com",
     }),

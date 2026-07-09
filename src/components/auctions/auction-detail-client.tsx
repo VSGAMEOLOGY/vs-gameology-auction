@@ -29,6 +29,10 @@ interface AuctionDetailClientProps {
 export function AuctionDetailClient({ initialAuction, categoryName, userId }: AuctionDetailClientProps) {
   const [auction, setAuction] = useState(initialAuction);
   const [bidRefreshKey, setBidRefreshKey] = useState(0);
+  const [bidStats, setBidStats] = useState({
+    count: initialAuction.bid_count ?? 0,
+    uniqueBidders: initialAuction.unique_bidder_count ?? 0,
+  });
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [, setNow] = useState(() => Date.now());
   const supabase = createClient();
@@ -71,6 +75,33 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "auctions", filter: `id=eq.${auction.id}` },
         (payload) => setAuction(payload.new as Auction)
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [auction.id, supabase]);
+
+  useEffect(() => {
+    async function loadBidStats() {
+      const { data } = await supabase
+        .from("bids")
+        .select("bidder_id")
+        .eq("auction_id", auction.id);
+      if (data) {
+        setBidStats({
+          count: data.length,
+          uniqueBidders: new Set(data.map((b) => b.bidder_id)).size,
+        });
+      }
+    }
+    loadBidStats();
+
+    const channel = supabase
+      .channel(`bid-stats-${auction.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bids", filter: `auction_id=eq.${auction.id}` },
+        () => loadBidStats()
       )
       .subscribe();
 
@@ -162,10 +193,10 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
           <p className="text-3xl font-bold text-brand-600">
             {formatCurrency(auction.current_bid || auction.starting_price)}
           </p>
-          {auction.bid_count != null && auction.bid_count > 0 && (
+          {bidStats.count > 0 && (
             <p className="mt-1 text-xs text-brand-600">
-              {auction.bid_count} bid{auction.bid_count !== 1 ? "s" : ""}
-              {auction.unique_bidder_count != null && ` · ${auction.unique_bidder_count} bidder${auction.unique_bidder_count !== 1 ? "s" : ""}`}
+              {bidStats.count} bid{bidStats.count !== 1 ? "s" : ""}
+              {` · ${bidStats.uniqueBidders} bidder${bidStats.uniqueBidders !== 1 ? "s" : ""}`}
             </p>
           )}
           {isActive && auction.end_at && (

@@ -6,6 +6,7 @@ import { sendEmail } from "@/lib/email";
 import {
   buildPaymentSubmittedEmail,
   buildPaymentVerifiedEmail,
+  buildPaymentRejectedEmail,
   buildOrderDispatchedEmail,
   buildCollectionConfirmedEmail,
   buildOrderDeliveredEmail,
@@ -240,6 +241,27 @@ export async function POST(request: Request) {
             console.error("/api/payments/notify: failed to send verified email", result.error);
           }
         }
+      } else {
+        if (!winnerEmail) {
+          console.error("/api/payments/notify: no email on file for winner, skipping rejected email", payment.winner_user_id);
+        } else {
+          const whatsappMessage = `Hi, my payment was rejected for auction ${auctionTitle} (Auction No: ${payment.auction?.auction_number ?? "-"}). Winning Bid: RM${payment.winning_bid.toFixed(2)}. Total: RM${payment.total_amount.toFixed(2)}. Username: ${username}. Email: ${winnerEmail}. Please advise. Thank you.`;
+          const { subject, text, html } = buildPaymentRejectedEmail({
+            username,
+            auctionTitle,
+            auctionNumber: payment.auction?.auction_number ?? "-",
+            winningBid: payment.winning_bid,
+            shippingFeeLabel,
+            totalAmount: payment.total_amount,
+            paymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/payments/${payment.auction_id}`,
+            whatsappUrl: `https://wa.me/60139681228?text=${encodeURIComponent(whatsappMessage)}`,
+          });
+          const result = await sendEmail({ to: winnerEmail, subject, text, html });
+          emailSent = result.ok;
+          if (!result.ok) {
+            console.error("/api/payments/notify: failed to send rejected email", result.error);
+          }
+        }
       }
 
       const { error: notifyError } = await service.from("notifications").insert({
@@ -248,7 +270,7 @@ export async function POST(request: Request) {
         title: approved ? "Payment Verified" : "Payment Rejected",
         message: approved
           ? `Your payment for ${auctionTitle} has been verified.`
-          : `Your payment for ${auctionTitle} was rejected. Please contact support.`,
+          : `Your payment for ${auctionTitle} has been rejected. Please resubmit your payment or contact us for assistance.`,
         related_auction_id: payment.auction_id,
       });
       if (notifyError) {
