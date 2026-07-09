@@ -496,7 +496,20 @@ export default function PaymentDetailPage() {
     "Thank you!",
   ].join("\n");
   const eastMalaysiaWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(eastMalaysiaWhatsappMessage)}`;
-  const rejectedWhatsappMessage = `Hi, my payment was rejected for auction ${auction?.title ?? ""} (Auction No: ${auction?.auction_number ?? ""}). Winning Bid: RM${payment.winning_bid.toFixed(2)}. Total: RM${payment.total_amount.toFixed(2)}. Username: ${profile?.username ?? ""}. Email: ${userEmail}. Please advise. Thank you.`;
+  const rejectedWhatsappMessage = [
+    "Hi, my payment was rejected for auction :",
+    "",
+    auction?.title ?? "",
+    `(Auction No: ${auction?.auction_number ?? ""}).`,
+    `Winning Bid: RM${payment.winning_bid.toFixed(2)}.`,
+    `Shipping : RM${payment.shipping_fee.toFixed(2)}`,
+    `Total: RM${payment.total_amount.toFixed(2)}.`,
+    "",
+    `Username: ${profile?.username ?? ""}`,
+    `Email: ${userEmail}`,
+    "",
+    "Please advise. Thank you.",
+  ].join("\n");
   const rejectedWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(rejectedWhatsappMessage)}`;
   const trackingUrl = getCourierTrackingUrl(payment.courier, payment.tracking_number);
   const { name: receiverName, phone: receiverPhone } = resolveReceiverInfo({
