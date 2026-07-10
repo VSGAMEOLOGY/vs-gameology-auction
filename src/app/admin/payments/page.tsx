@@ -47,11 +47,34 @@ function isPendingOver24h(payment: PaymentRow): boolean {
   return Date.now() - createdAt > 24 * 60 * 60 * 1000;
 }
 
+const PAGE_SIZE = 15;
+
+const PAYMENT_SELECT =
+  "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp), shipping_address:shipping_addresses(*)";
+
+function getPageNumbers(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set<number>([1, total, current - 1, current, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result: (number | "...")[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push("...");
+    result.push(p);
+    prev = p;
+  }
+  return result;
+}
+
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [filter, setFilter] = useState("submitted");
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [openDropdown, setOpenDropdown] = useState<OpenDropdown>(null);
   const [customerEmails, setCustomerEmails] = useState<Record<string, string>>({});
   const [customerEmailErrors, setCustomerEmailErrors] = useState<Record<string, string>>({});
@@ -70,34 +93,75 @@ export default function AdminPaymentsPage() {
   const supabase = createClient();
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, debouncedSearch]);
+
+  useEffect(() => {
     async function load() {
+      setLoading(true);
+
+      function applyResults(data: PaymentRow[] | null, count: number) {
+        if (data) {
+          setPayments(data);
+          setTrackingDrafts(Object.fromEntries(data.map((p) => [p.id, p.tracking_number ?? ""])));
+          setCourierDrafts(Object.fromEntries(data.map((p) => [p.id, p.courier ?? ""])));
+        }
+        setTotalCount(count);
+      }
+
+      if (debouncedSearch) {
+        const { data: idRows, error: rpcError } = await supabase.rpc("admin_search_payments", {
+          p_query: debouncedSearch,
+          p_status: filter,
+        });
+        if (rpcError) {
+          setActionError(`Search failed: ${rpcError.message}`);
+          setPayments([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+        const ids = (idRows ?? []).map((r: { id: number }) => r.id);
+        if (ids.length === 0) {
+          setPayments([]);
+          setTotalCount(0);
+          setLoading(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from("payments")
+          .select(PAYMENT_SELECT)
+          .in("id", ids)
+          .order("created_at", { ascending: false });
+        if (error) setActionError(`Failed to load search results: ${error.message}`);
+        applyResults(data as PaymentRow[] | null, ids.length);
+        setLoading(false);
+        return;
+      }
+
       let query = supabase
         .from("payments")
-        .select(
-          "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp), shipping_address:shipping_addresses(*)"
-        )
-        .order("created_at", { ascending: false });
+        .select(PAYMENT_SELECT, { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range((page - 1) * PAGE_SIZE, (page - 1) * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (filter !== "all") {
         query = query.eq("payment_status", filter);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) setActionError(`Failed to load payments: ${error.message}`);
-      if (data) {
-        setPayments(data as PaymentRow[]);
-        setTrackingDrafts(
-          Object.fromEntries((data as PaymentRow[]).map((p) => [p.id, p.tracking_number ?? ""]))
-        );
-        setCourierDrafts(
-          Object.fromEntries((data as PaymentRow[]).map((p) => [p.id, p.courier ?? ""]))
-        );
-      }
+      applyResults(data as PaymentRow[] | null, count ?? 0);
       setLoading(false);
     }
     setOpenDropdown(null);
     load();
-  }, [filter, supabase]);
+  }, [filter, page, debouncedSearch, supabase]);
 
   useEffect(() => {
     async function sendPendingWinEmails() {
@@ -473,6 +537,8 @@ export default function AdminPaymentsPage() {
     "rejected",
   ];
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900">Payment Verification</h1>
@@ -493,6 +559,24 @@ export default function AdminPaymentsPage() {
             {f}
           </button>
         ))}
+      </div>
+
+      <div className="relative mt-4 max-w-md">
+        <Input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search auction #, item, buyer name/email/phone, tracking #, remarks..."
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => setSearchInput("")}
+            aria-label="Clear search"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -861,19 +945,26 @@ export default function AdminPaymentsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          payment.payment_status === "verified" ||
-                          payment.payment_status === "collected" ||
-                          payment.payment_status === "delivered"
-                            ? "success"
-                            : payment.payment_status === "dispatched"
-                              ? "info"
-                              : "warning"
-                        }
-                      >
-                        {payment.payment_status}
-                      </Badge>
+                      <div className="flex flex-col items-start gap-0.5">
+                        <Badge
+                          variant={
+                            payment.payment_status === "verified" ||
+                            payment.payment_status === "collected" ||
+                            payment.payment_status === "delivered"
+                              ? "success"
+                              : payment.payment_status === "dispatched"
+                                ? "info"
+                                : "warning"
+                          }
+                        >
+                          {payment.payment_status}
+                        </Badge>
+                        {payment.payment_status === "collected" && payment.collected_at && (
+                          <span className="text-xs text-gray-500">
+                            Collected: {formatDate(payment.collected_at)}
+                          </span>
+                        )}
+                      </div>
                       {payment.resubmission_count >= 1 && (
                         <Badge variant="warning" className="bg-orange-100 text-orange-800">
                           Resubmission #{payment.resubmission_count}
@@ -895,6 +986,49 @@ export default function AdminPaymentsPage() {
               </Card>
             );
           })}
+          {debouncedSearch ? (
+            <p className="text-center text-sm text-gray-500">
+              {totalCount} result{totalCount === 1 ? "" : "s"} for &quot;{debouncedSearch}&quot;
+            </p>
+          ) : (
+            totalPages > 1 && (
+              <div className="flex items-center justify-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                {getPageNumbers(page, totalPages).map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} className="px-2 text-gray-400">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`h-8 w-8 rounded-lg text-sm font-medium ${
+                        p === page ? "bg-brand-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )
+          )}
         </div>
       ) : (
         <p className="mt-8 text-gray-500">No payments found</p>
