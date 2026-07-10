@@ -434,7 +434,7 @@ export default function AdminPaymentsPage() {
 
     const { error: updateError } = await supabase
       .from("payments")
-      .update({ payment_status: "collected" })
+      .update({ payment_status: "collected", collected_at: new Date().toISOString() })
       .eq("id", payment.id);
 
     if (updateError) {

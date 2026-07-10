@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDateOnly, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateOnly, cn } from "@/lib/utils";
 import { getCourierTrackingUrl } from "@/lib/couriers";
 import { resolveShippingZone as resolveZone, resolveReceiverInfo } from "@/lib/shipping";
 import { ChevronDown, UploadCloud, CheckCircle, XCircle, Truck } from "lucide-react";
@@ -988,16 +988,27 @@ export default function PaymentDetailPage() {
                       <p>Time Slot: {payment.collection_time_slot ?? "-"}</p>
                       {payment.collection_remarks && <p>Remarks: {payment.collection_remarks}</p>}
                     </div>
-                    {payment.collection_pin && (
+                    {payment.payment_status === "collected" ? (
                       <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-center">
-                        <p className="text-xs font-medium uppercase tracking-wide text-brand-600">
-                          Your Collection PIN
-                        </p>
-                        <p className="mt-1 text-2xl font-bold text-brand-700">{payment.collection_pin}</p>
+                        <p className="text-sm font-semibold text-brand-700">✅ Item Collected</p>
                         <p className="mt-1 text-xs text-gray-500">
-                          Show this PIN to our staff when collecting your item.
+                          {payment.collected_at
+                            ? `Collected on ${formatDate(payment.collected_at)}`
+                            : "Collected"}
                         </p>
                       </div>
+                    ) : (
+                      payment.collection_pin && (
+                        <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-center">
+                          <p className="text-xs font-medium uppercase tracking-wide text-brand-600">
+                            Your Collection PIN
+                          </p>
+                          <p className="mt-1 text-2xl font-bold text-brand-700">{payment.collection_pin}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Show this PIN to our staff when collecting your item.
+                          </p>
+                        </div>
+                      )
                     )}
                   </>
                 ) : (

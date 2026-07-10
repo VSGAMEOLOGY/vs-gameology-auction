@@ -158,6 +158,7 @@ export interface Payment {
   courier: string | null;
   dispatched_at: string | null;
   collection_pin: string | null;
+  collected_at: string | null;
   win_email_sent_at: string | null;
   win_email_sent: boolean;
   payment_reminder_sent_at: string | null;
@@ -180,6 +181,7 @@ export interface Notification {
   message: string;
   related_auction_id: number | null;
   is_read: boolean;
+  dismissed_at: string | null;
   created_at: string;
 }
 
