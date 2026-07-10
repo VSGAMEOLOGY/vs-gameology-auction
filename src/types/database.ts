@@ -29,6 +29,7 @@ export type NotificationType =
   | "order_dispatched"
   | "collection_confirmed"
   | "order_delivered"
+  | "auction_extended"
   | "general";
 export type SuspensionType = "temporary" | "permanent";
 
@@ -92,9 +93,9 @@ export interface Auction {
   unique_bidder_count: number | null;
   watcher_count: number | null;
 
-  anti_snipe_enabled: boolean | null;
-  anti_snipe_trigger_minutes: number | null;
-  anti_snipe_extend_minutes: number | null;
+  anti_snipe_enabled: boolean;
+  extension_count: number;
+  original_end_at: string | null;
 
   cover_photo_url: string | null;
   gallery_photos: string[] | null;

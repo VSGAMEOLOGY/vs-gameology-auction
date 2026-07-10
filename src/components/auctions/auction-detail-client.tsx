@@ -204,6 +204,16 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
               Ends in {getTimeRemaining(auction.end_at)} ({formatDate(auction.end_at)})
             </p>
           )}
+          {isActive && auction.anti_snipe_enabled && (
+            <p className="mt-2 text-xs text-brand-700">
+              ⏰ Anti-snipe protection ON — bids in the last 2 min extend the auction by 2 min.
+            </p>
+          )}
+          {isActive && auction.anti_snipe_enabled && auction.extension_count > 0 && (
+            <p className="mt-1 text-xs font-medium text-brand-700">
+              ⏰ Extended due to last-minute bid — new closing time: {formatDate(auction.end_at)}.
+            </p>
+          )}
         </div>
 
         {/* Short description */}

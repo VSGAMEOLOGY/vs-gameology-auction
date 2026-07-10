@@ -108,8 +108,6 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
     start_at: auction?.start_at?.slice(0, 16) ?? "",
     end_at: auction?.end_at?.slice(0, 16) ?? "",
     anti_snipe_enabled: auction?.anti_snipe_enabled ?? true,
-    anti_snipe_trigger_minutes: auction?.anti_snipe_trigger_minutes?.toString() ?? "5",
-    anti_snipe_extend_minutes: auction?.anti_snipe_extend_minutes?.toString() ?? "5",
     status: (auction?.status ?? "draft") as AuctionStatus,
   });
 
@@ -238,8 +236,6 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
       start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
       end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
       anti_snipe_enabled: form.anti_snipe_enabled,
-      anti_snipe_trigger_minutes: parseInt(form.anti_snipe_trigger_minutes),
-      anti_snipe_extend_minutes: parseInt(form.anti_snipe_extend_minutes),
       status,
       current_bid: parseFloat(form.starting_price),
       created_by: userId,
@@ -529,6 +525,23 @@ export function AuctionForm({ auction, userId, mode = "create" }: AuctionFormPro
           </div>
         </div>
       )}
+
+      <div className="rounded-lg border border-gray-200 p-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+          <input
+            type="checkbox"
+            checked={form.anti_snipe_enabled}
+            onChange={(e) => setForm({ ...form, anti_snipe_enabled: e.target.checked })}
+            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+          />
+          Sniper protection (anti-snipe)
+        </label>
+        <p className="mt-1 text-sm text-gray-500">
+          When enabled, a bid placed in the last 2 minutes before closing extends the
+          auction by 2 minutes. This can repeat with no limit. Not configurable per
+          auction — always 2 min / 2 min when on.
+        </p>
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <Button
