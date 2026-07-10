@@ -20,6 +20,8 @@ type AuctionSnippet = {
   starting_price: number;
   current_bid: number | null;
   shipping_type: string | null;
+  start_at: string;
+  end_at: string;
 };
 
 type WinnerSnippet = {
@@ -50,7 +52,7 @@ function isPendingOver24h(payment: PaymentRow): boolean {
 const PAGE_SIZE = 15;
 
 const PAYMENT_SELECT =
-  "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type), winner:profiles!winner_user_id(username, real_name, whatsapp), shipping_address:shipping_addresses(*)";
+  "*, auction:auctions(auction_number, title, condition, starting_price, current_bid, shipping_type, start_at, end_at), winner:profiles!winner_user_id(username, real_name, whatsapp), shipping_address:shipping_addresses(*)";
 
 function getPageNumbers(current: number, total: number): (number | "...")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -641,6 +643,14 @@ export default function AdminPaymentsPage() {
                           <p>
                             <span className="text-gray-500">Shipping: </span>
                             {payment.auction?.shipping_type ?? "N/A"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">Auction Start: </span>
+                            {payment.auction?.start_at ? formatDate(payment.auction.start_at) : "—"}
+                          </p>
+                          <p>
+                            <span className="text-gray-500">Auction End: </span>
+                            {payment.auction?.end_at ? formatDate(payment.auction.end_at) : "—"}
                           </p>
                         </div>
                       )}
