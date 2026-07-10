@@ -124,6 +124,9 @@ export function AuctionDetailClient({ initialAuction, categoryName, userId }: Au
   if (auction.auction_number) {
     detailFields.push({ label: "Auction #", value: auction.auction_number });
   }
+  if (auction.end_at) {
+    detailFields.push({ label: "Ends", value: formatDate(auction.end_at) });
+  }
 
   return (
     <div className="grid gap-8 lg:grid-cols-2">
