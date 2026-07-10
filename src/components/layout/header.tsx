@@ -41,7 +41,8 @@ export function Header() {
         .from("notifications")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .eq("is_read", false);
+        .eq("is_read", false)
+        .is("dismissed_at", null);
       setUnreadCount(count ?? 0);
     }
     load();
